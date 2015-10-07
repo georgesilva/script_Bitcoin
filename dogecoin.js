@@ -1,6 +1,6 @@
-var     startValue = '0.00000025', // Your balance must be 10^4 or 10^5 higher than this number. At least.
-        stopPercentage = 0.05,  // Reaching this percentage of your balance the script stops. 
-                                // If you dont want it, put "2". Recommended "0.08" or lower. 
+var     startValue = '0.029', // Your balance must be 10^4 or 10^5 higher than this number. At least.
+        stopPercentage = 0.07,  // Reaching this percentage of your balance the script stops. 
+                                // If you dont want it, put "2". Recommended "0.08" or lower.
         maxWait = 500, // In milliseconds
         stopBefore = 2, // In minutes
         odds = 10,  // Your Payout
@@ -14,13 +14,13 @@ var     startValue = '0.00000025', // Your balance must be 10^4 or 10^5 higher t
         iterations = 0,
         printLog = false;
  
-var     $loButton = $('#double_your_btc_bet_lo_button'),
-        $hiButton = $('#double_your_btc_bet_hi_button');
+var     $loButton = $('#double_your_doge_bet_lo_button'),
+        $hiButton = $('#double_your_doge_bet_hi_button');
  
 function multiply(){
-        var current = $('#double_your_btc_stake').val();
+        var current = $('#double_your_doge_stake').val();
         var multiply = (current * lossMulti).toFixed(8);
-        $('#double_your_btc_stake').val(multiply);
+        $('#double_your_doge_stake').val(multiply);
 }
  
 function getRandomWait(){
@@ -35,7 +35,7 @@ function getRandomWait(){
  
 function startGame(){
         jackpotUncheck();
-        $('#double_your_btc_payout_multiplier').val(odds);
+        $('#double_your_doge_payout_multiplier').val(odds);
         console.log('Game started!');
         reset();
         $loButton.trigger('click');
@@ -44,15 +44,6 @@ function startGame(){
 function stopGame(){
         console.log('Game will stop soon! Let me finish.');
         stopped = true;
-}
- 
-function reset(){
-        $('#double_your_btc_stake').val(startValue);
-}
- 
-// quick and dirty hack if you have very little bitcoins like 0.0000001
-function deexponentize(number){
-        return number * 1000000;
 }
 
 function resetConsole() {
@@ -73,10 +64,19 @@ function jackpotUncheck() {
         }
 }
  
+function reset(){
+        $('#double_your_doge_stake').val(startValue);
+}
+ 
+// quick and dirty hack if you have very little bitcoins like 0.0000001
+function deexponentize(number){
+        return number * 1000000;
+}
+ 
 function iHaveEnoughMoni(){
         var balance = deexponentize(parseFloat($('#balance').text()));
-        var current = deexponentize($('#double_your_btc_stake').val());
- 
+        var current = deexponentize($('#double_your_doge_stake').val());
+
         return (balance * stopPercentage) > current;
 }
  
@@ -85,7 +85,9 @@ function stopBeforeRedirect(){
  
         if( minutes < stopBefore )
         {
-                console.log('Approaching redirect! Stop the game so we don\'t get redirected while loosing.');
+                if (printLog) {
+                        console.log('Approaching redirect! Stop the game so we don\'t get redirected while loosing.');
+                }
                 stopGame();
  
                 return true;
@@ -95,11 +97,11 @@ function stopBeforeRedirect(){
 }
  
 // Unbind old shit
-$('#double_your_btc_bet_lose').unbind();
-$('#double_your_btc_bet_win').unbind();
+$('#double_your_doge_bet_lose').unbind();
+$('#double_your_doge_bet_win').unbind();
  
 // Loser
-$('#double_your_btc_bet_lose').bind("DOMSubtreeModified",function(event){
+$('#double_your_doge_bet_lose').bind("DOMSubtreeModified",function(event){
         if( $(event.currentTarget).is(':contains("lose")') )
         {
                 lossesCounter++;
@@ -119,9 +121,9 @@ $('#double_your_btc_bet_lose').bind("DOMSubtreeModified",function(event){
                 multiply();
 
                 if ( !iHaveEnoughMoni() ) {
-                        console.log('Your bet reached a maximum threshold. Reseting for your safety.')
+                        console.info('Your bet reached a maximum threshold. Reseting for your safety.')
                         reset();
-                        
+
                         if (lossesCounter > maxLosses) {
                                 maxLosses = lossesCounter;
                         }
@@ -139,11 +141,10 @@ $('#double_your_btc_bet_lose').bind("DOMSubtreeModified",function(event){
 });
  
 // Winner
-$('#double_your_btc_bet_win').bind("DOMSubtreeModified",function(event){
+$('#double_your_doge_bet_win').bind("DOMSubtreeModified",function(event){
         if( $(event.currentTarget).is(':contains("win")') )
         {
                 iterations++;
-
                 if (iterations > 5000) {
                         resetConsole();
                 }
@@ -180,7 +181,7 @@ $('#double_your_btc_bet_win').bind("DOMSubtreeModified",function(event){
 });
 
 // Errors
-$('#double_your_btc_error').bind("DOMSubtreeModified",function(event) {
+$('#double_your_doge_error').bind("DOMSubtreeModified",function(event) {
         if( $(event.currentTarget).is(':contains("Request timed out")') )
         {
                 errorCount++;
@@ -190,7 +191,7 @@ $('#double_your_btc_error').bind("DOMSubtreeModified",function(event) {
                         resetConsole();
                 }
                 console.error('Timed Out message detected. Waiting 3 seconds.');
-                
+
                 if( stopped )
                 {
                         stopped = false;
@@ -207,7 +208,8 @@ $('#double_your_btc_error').bind("DOMSubtreeModified",function(event) {
                 if (iterations > 5000) {
                         resetConsole();
                 }
-                console.info('Your bet is too high. Reanalyze your parameters before starting again. Exiting!');
+                console.error('Your bet is higher than your balance. Reanalyze your parameters before starting again. Exiting!')
+                
                 stopGame();
                 return;
         }
