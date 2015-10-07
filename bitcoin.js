@@ -1,5 +1,6 @@
-var     startValue = '0.00000050', // Your balance must be 10^4 or 10^5 higher than this number. At least.
-        stopPercentage = 0.4, // In %. Reaching this percentage of your balance the script stops. If you dont want it, put "1". 
+var     startValue = '0.00000025', // Your balance must be 10^4 or 10^5 higher than this number. At least.
+        stopPercentage = 0.05,  // Reaching this percentage of your balance the script stops. 
+                                // If you dont want it, put "2". Recommended "0.08" or lower. 
         maxWait = 500, // In milliseconds
         stopBefore = 2, // In minutes
         odds = 10,  // Your Payout
@@ -120,6 +121,14 @@ $('#double_your_btc_bet_lose').bind("DOMSubtreeModified",function(event){
                 if ( !iHaveEnoughMoni() ) {
                         console.log('Your bet reached a maximum threshold. Reseting for your safety.')
                         reset();
+                        
+                        if (lossesCounter > maxLosses) {
+                                maxLosses = lossesCounter;
+                        }
+                        console.log('Your maximum number of consecutive losses is ' + maxLosses);
+                        lossesCounter = 0;
+
+
                         $loButton.trigger('click');
                 }
  
