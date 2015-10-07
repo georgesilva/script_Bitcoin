@@ -1,17 +1,20 @@
-var startValue = '0.041', // Your balance must be 10^4 or 10^5 higher than this number. At least.
+var     startValue = '0.041', // Your balance must be 10^4 or 10^5 higher than this number. At least.
         stopPercentage = 1, // In %. Reaching this percentage of your balance the script stops. If you dont want it, put "1".
         maxWait = 500, // In milliseconds
-        stopped = false,
         stopBefore = 2, // In minutes
         odds = 10,  // Your Payout
         lossMulti = 1.12,  // On Loss Multiply to
+        
+// Dont change these
+        stopped = false,
+        maxLosses = 0,
         errorCount = 0,
-        loseCounter = 0,
+        lossesCounter = 0,
         iterations = 0,
         printLog = false;
  
-var $loButton = $('#double_your_doge_bet_lo_button'),
-                $hiButton = $('#double_your_doge_bet_hi_button');
+var     $loButton = $('#double_your_doge_bet_lo_button'),
+        $hiButton = $('#double_your_doge_bet_hi_button');
  
 function multiply(){
         var current = $('#double_your_doge_stake').val();
@@ -30,6 +33,7 @@ function getRandomWait(){
 }
  
 function startGame(){
+        jackpotUncheck();
         $('#double_your_doge_payout_multiplier').val(odds);
         console.log('Game started!');
         reset();
@@ -48,6 +52,15 @@ function resetConsole() {
 
 function toggleLog() {
         printLog = !printLog; 
+}
+
+function jackpotUncheck() {
+        boxes = $(':input');
+        for (var i = 0; i < boxes.length; i++) {
+                if (boxes[i].type == 'checkbox') {
+                        boxes[i].checked = false;
+                }
+        }
 }
  
 function reset(){
@@ -90,7 +103,7 @@ $('#double_your_doge_bet_win').unbind();
 $('#double_your_doge_bet_lose').bind("DOMSubtreeModified",function(event){
         if( $(event.currentTarget).is(':contains("lose")') )
         {
-                loseCounter++;
+                lossesCounter++;
                 iterations++;
 
                 if (iterations > 5000) {
@@ -98,7 +111,10 @@ $('#double_your_doge_bet_lose').bind("DOMSubtreeModified",function(event){
                 }
 
                 if (printLog) {
-                        console.log('You LOST! Multiplying your bet and betting again. Total errors: ' + errorCount);
+                        console.log('You LOST! Multiplying your bet and betting again.');
+                        if (errorCount > 0) {
+                                console.error(' Total errors: ' + errorCount);
+                        }
                 }
                
                 multiply();
@@ -119,7 +135,7 @@ $('#double_your_doge_bet_lose').bind("DOMSubtreeModified",function(event){
 $('#double_your_doge_bet_win').bind("DOMSubtreeModified",function(event){
         if( $(event.currentTarget).is(':contains("win")') )
         {
-                iteration++;
+                iterations++;
                 if (iterations > 5000) {
                         resetConsole();
                 }
@@ -137,11 +153,18 @@ $('#double_your_doge_bet_win').bind("DOMSubtreeModified",function(event){
                         return false;
                 }
                 if (printLog) {
-                        console.log('You WON! After losing ' + loseCounter + ' times. Restarting now!');
+                        console.info('You WON! After losing ' + lossesCounter + ' times. Restarting now!');
                         if (errorCount > 0) {
                                 console.error('Total errors: ' + errorCount);
                         }
                 }
+                if (lossesCounter > maxLosses) {
+                        maxLosses = lossesCounter;
+                }
+                if (printLog) {
+                        console.log('Your maximum number of consecutive losses is ' + maxLosses);
+                }
+                lossesCounter = 0;
                 
  
                 setTimeout(function(){ $loButton.trigger('click'); }, getRandomWait());
