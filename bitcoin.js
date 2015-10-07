@@ -1,5 +1,5 @@
-var     startValue = '0.00000025', // Your balance must be 10^4 or 10^5 higher than this number. At least.
-        stopPercentage = 0.05,  // Reaching this percentage of your balance the script stops. 
+var     startValue = '0.00000035', // Your balance must be 10^4 or 10^5 higher than this number. At least.
+        stopPercentage = 0.07,  // Reaching this percentage of your balance the script stops. 
                                 // If you dont want it, put "2". Recommended "0.08" or lower. 
         maxWait = 500, // In milliseconds
         stopBefore = 2, // In minutes
