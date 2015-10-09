@@ -1,10 +1,10 @@
-var     startValue = '0.00000005', // Your balance must be 10^4 or 10^5 higher than this number. At least.
+var     startValue = '0.00000020', // Your balance must be 10^4 or 10^5 higher than this number. At least.
         stopPercentage = 0.02,  // Reaching this percentage of your balance the script stops. 
                                 // If you dont want it, put "2". Recommended "0.08" or lower. 
         maxWait = 500, // In milliseconds
         stopBefore = 2, // In minutes
         odds = 10,  // Your Payout
-        lossMulti = 1.17,  // On Loss Multiply to
+        lossMulti = 1.14,  // On Loss Multiply to
         
 // Dont change these
         stopped = false,
@@ -22,13 +22,7 @@ var     $loButton = $('#double_your_btc_bet_lo_button'),
  
 function multiply(){
         // TODO improvement
-        if (lossesCounter > 34)
-                lossMulti = 1.16
-        else if (lossesCounter > 44)
-                lossMulti = 1.15
-        else if (lossesCounter > 54)
-                lossMulti = 1.14;
-        else if (lossesCounter > 64)
+        if (lossesCounter > 64)
                 lossMulti = 1.13;
         else if (lossesCounter > 74)
                 lossMulti = 1.12;
