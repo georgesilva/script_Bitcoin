@@ -1,10 +1,10 @@
-var     startValue = '0.00000035', // Your balance must be 10^4 or 10^5 higher than this number. At least.
-        stopPercentage = 0.07,  // Reaching this percentage of your balance the script stops. 
+var     startValue = '0.00000005', // Your balance must be 10^4 or 10^5 higher than this number. At least.
+        stopPercentage = 0.02,  // Reaching this percentage of your balance the script stops. 
                                 // If you dont want it, put "2". Recommended "0.08" or lower. 
         maxWait = 500, // In milliseconds
         stopBefore = 2, // In minutes
         odds = 10,  // Your Payout
-        lossMulti = 1.12,  // On Loss Multiply to
+        lossMulti = 1.17,  // On Loss Multiply to
         
 // Dont change these
         stopped = false,
@@ -12,12 +12,28 @@ var     startValue = '0.00000035', // Your balance must be 10^4 or 10^5 higher t
         errorCount = 0,
         lossesCounter = 0,
         iterations = 0,
-        printLog = false;
+        printLog = true,
+        loseStats = new Array(150),
+        sumLosses = 0,
+        sumWin = 0;
  
 var     $loButton = $('#double_your_btc_bet_lo_button'),
         $hiButton = $('#double_your_btc_bet_hi_button');
  
 function multiply(){
+        // TODO improvement
+        if (lossesCounter > 34)
+                lossMulti = 1.16
+        else if (lossesCounter > 44)
+                lossMulti = 1.15
+        else if (lossesCounter > 54)
+                lossMulti = 1.14;
+        else if (lossesCounter > 64)
+                lossMulti = 1.13;
+        else if (lossesCounter > 74)
+                lossMulti = 1.12;
+
+
         var current = $('#double_your_btc_stake').val();
         var multiply = (current * lossMulti).toFixed(8);
         $('#double_your_btc_stake').val(multiply);
@@ -35,6 +51,7 @@ function getRandomWait(){
  
 function startGame(){
         jackpotUncheck();
+        initiate();
         $('#double_your_btc_payout_multiplier').val(odds);
         console.log('Game started!');
         reset();
@@ -47,7 +64,14 @@ function stopGame(){
 }
  
 function reset(){
+        lossMulti = 1.15;
         $('#double_your_btc_stake').val(startValue);
+}
+
+function initiate() {
+        for (var i = 200; i >= 0; i--) {
+                loseStats[i] = 0;
+        };
 }
  
 // quick and dirty hack if you have very little bitcoins like 0.0000001
@@ -58,6 +82,14 @@ function deexponentize(number){
 function resetConsole() {
         console.clear();
         iterations = 0;
+}
+
+function printStats() {
+        console.info('Total winings: ' + sumWin + '. Total Losses: ' + sumLosses);
+        for (var i = 0; i <= 150; i++) {
+                if (loseStats[i] != 0)
+                        console.log(i + ' => ' + loseStats[i] + ' times.');
+        }
 }
 
 function toggleLog() {
@@ -104,6 +136,7 @@ $('#double_your_btc_bet_lose').bind("DOMSubtreeModified",function(event){
         {
                 lossesCounter++;
                 iterations++;
+                sumLosses++;
 
                 if (iterations > 5000) {
                         resetConsole();
@@ -143,6 +176,7 @@ $('#double_your_btc_bet_win').bind("DOMSubtreeModified",function(event){
         if( $(event.currentTarget).is(':contains("win")') )
         {
                 iterations++;
+                sumWin++;
 
                 if (iterations > 5000) {
                         resetConsole();
@@ -158,6 +192,7 @@ $('#double_your_btc_bet_win').bind("DOMSubtreeModified",function(event){
                 if( stopped )
                 {
                         stopped = false;
+                        printStats();
                         return false;
                 }
                 if (printLog) {
@@ -172,6 +207,8 @@ $('#double_your_btc_bet_win').bind("DOMSubtreeModified",function(event){
                 if (printLog) {
                         console.log('Your maximum number of consecutive losses is ' + maxLosses);
                 }
+                if (lossesCounter <= 150)
+                        loseStats[lossesCounter]++;
                 lossesCounter = 0;
                 
  
@@ -209,6 +246,7 @@ $('#double_your_btc_error').bind("DOMSubtreeModified",function(event) {
                 }
                 console.info('Your bet is too high. Reanalyze your parameters before starting again. Exiting!');
                 stopGame();
+                printStats();
                 return;
         }
         else if ( $(event.currentTarget).length > 3 )
