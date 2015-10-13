@@ -15,10 +15,12 @@ maxWait = 300
 stop = False
 lossesCounter = 0
 randNumber = '0.23360912990756333'
+saldoInicial = 0
 sumLosses = 0
 sumWin = 0
 maxLoss = 0
 initTime = 0
+iterator = 0
 loseStats = [[] for k in range(200)]
 
 
@@ -86,8 +88,8 @@ def openBrowser(wallet, password):
 
 def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 	"Funcao que faz a aposta utilizando os parametros. Retorna o balanço atualizado em BTCs."
-	bet = initBet
-	initiate()
+	global iterator
+	global saldoInicial
 	global stop
 	global sumLosses
 	global lossesCounter
@@ -97,16 +99,22 @@ def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 	global clientSeed
 	global randNumber
 
-
+	bet = initBet
+	initiate()
 	clientSeed = getClientSeed(br)
 
 	with GracefulInterruptHandler() as h:
 		while True:
+			iterator = iterator+1
 			response = br.open('/cgi-bin/bet.pl?m='+mode+'&client_seed='+clientSeed+'&jackpot=0&stake='+str("{:.8f}".format(bet))+
 								'&multiplier='+odds+'&rand='+str(randNumber)+'&csrf_token='+csrf_token)
 			serverResponse = response.read().split(':')
 			balance = serverResponse[3]
-			
+			if iterator == 1:
+				saldoInicial = balance
+			if iterator % 200 == 0:
+				printStats(balance)
+
 			if serverResponse[0] != 's1':
 				print "An error occurred"
 			elif serverResponse[1] == 'w':
@@ -138,6 +146,7 @@ def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 					if lossesCounter <= 200:
 						loseStats[lossesCounter] = loseStats[lossesCounter]+1
 					lossesCounter = 0
+				print 'You LOST! Multiplying your bet and betting again.'
 			getRandomWait()
 			if h.interrupted:
 				stop = True
@@ -154,10 +163,7 @@ def getClientSeed(br):
 
 def getInitialBalance(br):
 	""
-	response = br.open('https://freebitco.in/?op=home&tab=double_your_btc#')
-	br.form = br.global_form()
-	blc = br.find_control(id="balance").value
-	return float(blc)
+	return saldoInicial
 
 
 def getToken(br):
@@ -209,7 +215,12 @@ def printStats(balance):
 	twodigitsFormat = '{:.2f}'
 	eightdigitsFormat = '{:.8f}'
 	sumTotal = sumWin + sumLosses
-	print 'Winings: ' + str(sumWin) + ' [' + str(twodigitsFormat.format(sumWin/sumTotal*100)) + '%]. Losses: ' + str(sumLosses) + ' [' + str(twodigitsFormat.format(sumLosses/sumTotal*100)) + '%]. Total: ' + str(sumTotal)
+	pctWin = float(sumWin)/float(sumTotal)
+	pctWin = pctWin*100
+	pctLost = float(sumLosses)/float(sumTotal)
+	pctLost = pctLost*100
+
+	print 'Winings: ' + str(sumWin) + ' [' + str(twodigitsFormat.format(pctWin)) + '%]. Losses: ' + str(sumLosses) + ' [' + str(twodigitsFormat.format(pctLost)) + '%]. Total: ' + str(sumTotal)
 	
 	tempo = (time.time() - initTime)/60
 	if tempo < 240:
@@ -219,8 +230,11 @@ def printStats(balance):
 		tempo = tempo / 60
 		tempo = twodigitsFormat.format(tempo)
 		strTempo =  str(tempo) + ' hours.'
+
+	profit = eightdigitsFormat.format(float(balance) - float(saldoInicial))
 	
-	print 'Your actual balance is: ' + str(balance) + 'BTCs. Running for ' + strTempo
+	print 'You Won ' + str(profit) + ' BTCs.'
+	print 'Your actual balance is: ' + str(balance) + ' BTCs. Running for ' + strTempo
 	for i in range(0, 200):
 		if loseStats[i] != 0:
 			print str(i) + ' => ' + str(loseStats[i]) + ' times.'
