@@ -1,0 +1,122 @@
+#!/usr/bin/python
+import mechanize
+import urllib
+import cookielib
+import random
+import re
+
+# Browser
+br = mechanize.Browser()
+
+# Cookie Jar
+cj = cookielib.LWPCookieJar()
+br.set_cookiejar(cj)
+
+# Browser options
+br.set_handle_equiv(True)
+br.set_handle_gzip(True)
+br.set_handle_redirect(True)
+br.set_handle_referer(True	)
+br.set_handle_robots(False)
+
+# Follows refresh 0 but not hangs on refresh > 0
+br.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(), max_time=1)
+
+# Want debugging messages?
+br.set_debug_http(True)
+br.set_debug_redirects(False)
+br.set_debug_responses(False)
+
+# User-Agent (this is cheating, ok?)
+br.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2522.1 Safari/537.36')]
+
+wallet = 'endereco bitcoin ou email'
+password = 'senha'
+
+# Open some site
+response = br.open('https://freebitco.in/')
+
+#Loggin in
+br.select_form(nr=2)
+br['btc_address'] = wallet
+br['password'] = password
+response = br.submit()
+httpResult = response.read().split(":")
+print httpResult
+
+#Setting cookies
+cookieBTCAddress = "btc_address="+httpResult[1]+"; expires=3650"
+cookiePassword = "password="+httpResult[2]+"; expires=3650"
+br.set_cookie(cookieBTCAddress)
+br.set_cookie(cookiePassword)
+br.set_cookie("sm_dapi_session=1; expires=3650")
+br.set_cookie("cookieconsent_dismissed=yes; expires=3650")
+br.set_cookie("have_account=1; expires=3650")
+
+#Loading the bet page
+response = br.open('https://freebitco.in/?op=home&tab=double_your_btc#')
+
+# Starting the fun, loading the betting parameters
+mode = "lo"
+clientSeed = getClientSeed()
+csrf_token = getToken()
+randNumber = '0.23360912990756333'
+initialBet = '0.00000005'
+odds = '10.00'
+multiplier = 1.14
+
+
+##########################
+
+
+
+
+
+
+
+#Functions
+def clickButton(bet):
+	"Funcao que faz a aposta utilizando os parametros"
+	response = br.open('/cgi-bin/bet.pl?m='+mode+'&client_seed='+clientSeed+'&jackpot=0&stake='+bet+
+						'&multiplier='+odds+'&rand='+str(randNumber)+'&csrf_token='+csrf_token)
+	serverResponse = response.read().split(':')
+	return serverResponse
+
+def getClientSeed():
+	"Extrai next_client_seed da pagina"
+	br.form = br.global_form()
+	seed = br.find_control(id="next_client_seed").value
+	return seed
+
+def getToken():
+	"Extrai o token necessario para enviar como parametro a cada aposta"
+	response = br.open('https://freebitco.in/?op=home&tab=double_your_btc#')
+	cookie = response.info()['Set-Cookie']
+	if 'csrf_token' in cookie:
+		init = cookie.find('=')
+		end = cookie.find(';')
+		csrf_token = cookie[init+1:end]
+
+
+
+
+
+
+###############ANOTATIONS
+#$.get('/cgi-bin/bet.pl?m='+mode+'&client_seed='+client_seed+'&jackpot='+jackpot+'&stake='+bet+'&
+#		multiplier='+$( "#double_your_doge_payout_multiplier" ).val()+'&rand='+Math.random(),
+
+#httpResult[0] = success or fail
+#httpResult[1] = "w" or "l" 
+#httpResult[2] = bet random number
+#httpResult[3] = new Balance
+#httpResult[6] = new seed hash of server
+#httpResult[8] = new NONCE
+#httpResult[9] = old seed of server
+#httpResult[10] = old seed hash of server
+#httpResult[11] = old seed of client
+#httpResult[12] = old NONCE
+#httpResult[16] = maybe is the maximum you can bet ?????
+
+
+print "It worked! Exiting."
