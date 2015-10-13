@@ -1,0 +1,1259 @@
+var stop_autobet=false;
+var autobet_dnr=false;
+var autobet_running=false;
+var free_play_sound=false;
+var autobet_history=[];
+
+$.ajaxSetup({
+	data:{
+		csrf_token:$.cookie('csrf_token')
+	}, beforeSend:function(xhr){
+		xhr.setRequestHeader('x-csrf-token',$.cookie('csrf_token'));
+	}, timeout:60000
+});
+
+$.extend({
+	redirectPost:function(location,args){
+		var form='';$.each(args,function(key,value){
+			form+='<input type="hidden" name="'+key+'" value="'+value+'">';
+		});
+		$('<form action="'+location+'" method="POST">'+form+'</form>').appendTo('body').submit();
+	}
+});
+
+$(document).ready(function(){
+	$("#hide_site_message").click(function(){
+		$('#common_site_message').hide();
+		$.get('/?op=hide_site_message');
+	});
+	charSet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	var randomString='';
+	for(var i=0;i<16;i++){
+		var randomPoz=Math.floor(Math.random()*charSet.length);
+		randomString+=charSet.substring(randomPoz,randomPoz+1);
+	}
+	$('#next_client_seed').val(randomString);
+	$('.tabs a').click(function(){
+		$('.tabs li').removeClass('active');
+		$(this).parent().addClass('active');
+	});
+	$('#free_play_link_li').addClass('active');
+	$('.faq_answer').hide();
+	$('#what_is_dogecoin_signup_page_more').hide();
+	$('.faq_question').click(function(){
+		$(this).next('.faq_answer').show();
+	});
+	$('#what_is_dogecoin_signup_page_read_more_link').click(function(){
+		$('#what_is_dogecoin_signup_page_read_more_link').hide();
+		$('#what_is_dogecoin_signup_page_more').show();
+	});
+	$('#provably_fair_link').click(function(){
+		$("html, body").animate({scrollTop:$("#provably_fair").offset().top- 45},"fast");
+	});
+	$("#signup_form").submit(function(event){event.preventDefault();
+	$("#signup_button").attr("disabled",true);
+	var fingerprint=$.fingerprint();
+	var tag=$.url().param("tag");
+	var $form=$(this),
+		op=$form.find('input[name="op"]').val(),
+		referrer=$form.find('input[name="referrer"]').val(),
+		doge_address=$form.find('input[name="doge_address"]').val(),
+		password=$form.find('input[name="password"]').val(),
+		email=$form.find('input[name="email"]').val(),
+		g_recaptcha_response=$form.find('#g-recaptcha-response').val()||grecaptcha.getResponse(),
+		adcopy_challenge=$form.find('input[name="adcopy_challenge"]').val(),
+		adcopy_response=$form.find('input[name="adcopy_response"]').val()||$form.find('select[name="adcopy_response"]').val(),
+		token=$form.find('input[name="token"]').val(),
+		url=$form.attr('action');
+	var posting=$.post(url,{
+		op:op,
+		doge_address:doge_address,
+		password:password,
+		email:email,
+		adcopy_challenge:adcopy_challenge,
+		adcopy_response:adcopy_response,
+		fingerprint:fingerprint,
+		referrer:referrer,
+		tag:tag,
+		token:token,
+		g_recaptcha_response:g_recaptcha_response});
+		posting.done(function(data){
+			var result=data.split(":");
+			$('#signup_error').hide();
+			$('#signup_error').html("");
+			$('#signup_form_doge_address').removeClass('input-error');
+			$('#signup_form_password').removeClass('input-error');
+			$('#signup_form_repeat_password').removeClass('input-error');
+			if(result[0]=="e1"){$('#signup_error').show();
+			$('#signup_error').html("Incorrect Dogecoin address entered");
+			$('#signup_form_doge_address').addClass('input-error');
+			ACPuzzle.reload();
+			grecaptcha.reset();
+		}
+		if(result[0]=="e2"){
+			$('#signup_error').show();
+			$('#signup_error').html("Please enter a password");
+			$('#signup_form_password').addClass('input-error');
+			ACPuzzle.reload();
+			grecaptcha.reset();
+		}
+		if(result[0]=="e3"){
+			$('#signup_error').show();
+			$('#signup_error').html("Password and repeat password do not match");
+			$('#signup_form_password').addClass('input-error');
+			$('#signup_form_repeat_password').addClass('input-error');
+			ACPuzzle.reload();
+			grecaptcha.reset();
+		}
+		if(result[0]=="e4"){
+			$('#signup_error').show();
+			$('#signup_error').html("An account with this Dogecoin address already exists");
+			$('#signup_form_doge_address').addClass('input-error');
+			ACPuzzle.reload();
+			grecaptcha.reset();
+		}
+		if(result[0]=="e5"){
+			$('#signup_error').show();
+			$('#signup_error').html("Invalid email address");
+			$('#signup_form_doge_address').addClass('input-error');
+			ACPuzzle.reload();
+			grecaptcha.reset();
+		}if(result[0]=="e8"){
+			$('#signup_error').show();
+			$('#signup_error').html("Sorry, this IP address has been blocked. If you are using a proxy or anonymization service, please turn it off before playing. If not, you can get a new IP by restarting your router.");
+		}
+		if(result[0]=="e9"){
+			$('#signup_error').show();
+			$('#signup_error').html("Unexpected error. Reloading the page...");
+			window.location.replace("http://freedoge.co.in/?op=home");
+		}
+		if(result[0]=="e10"){
+			$('#signup_error').show();
+			$('#signup_error').html("An account with this email address already exists");
+			ACPuzzle.reload();
+			grecaptcha.reset();
+		}
+		if(result[0]=="e11"){
+			$('#signup_error').show();
+			$('#signup_error').html("Please enter an email address");
+			$('#signup_form_doge_address').addClass('input-error');
+			ACPuzzle.reload();grecaptcha.reset();
+		}
+		if(result[0]=="e12"){
+			$('#signup_error').show();
+			$('#signup_error').html("Incorrect captcha entered");
+			$('#recaptcha_captcha').show();
+			ACPuzzle.reload();grecaptcha.reset();
+		}
+		if(result[0]=="s1"){
+			$.cookie.raw=true;$.cookie('doge_address',result[1],{expires:3650});
+			$.cookie('password',result[2],{expires:3650});
+			$.cookie('have_account',1,{expires:3650});
+			window.location.replace("http://freedoge.co.in/?op=home");
+		}
+		$("#signup_button").attr("disabled",false);
+	});
+});
+$("#login_form").submit(function(event){
+	event.preventDefault();
+	$("#login_button").attr("disabled",true);
+	var $form=$(this),
+		op=$form.find('input[name="op"]').val(),
+		doge_address=$form.find('input[name="doge_address"]').val(),
+		password=$form.find('input[name="password"]').val(),
+		recaptcha_challenge_field=$form.find('input[name="recaptcha_challenge_field"]').val(),
+		recaptcha_response_field=$form.find('input[name="recaptcha_response_field"]').val(),
+		adcopy_challenge=$form.find('input[name="adcopy_challenge"]').val(),
+		adcopy_response=$form.find('input[name="adcopy_response"]').val()||$form.find('select[name="adcopy_response"]').val(),
+		url=$form.attr('action');
+	var posting=$.post(url,
+	{
+		op:op,
+		doge_address:doge_address,
+		password:password,
+		recaptcha_challenge_field:recaptcha_challenge_field,
+		recaptcha_response_field:recaptcha_response_field,
+		adcopy_challenge:adcopy_challenge,
+		adcopy_response:adcopy_response
+	});
+	posting.done(function(data){
+		var result=data.split(":");
+		$('#login_error').html("");
+		$('#login_error').hide();
+		if(result[0]=="e1"){
+			$('#login_error').show();
+			$('#login_error').html("Please enter a dogecoin address or email address");
+		}if(result[0]=="e2"){
+			$('#login_error').show();
+			$('#login_error').html("Please enter a password");
+		}if(result[0]=="e3"){
+			$('#login_error').show();
+			$('#login_error').html("Incorrect login details");
+		}if(result[0]=="e4"){
+			$('#login_error').show();
+			$('#login_error').html("Incorrect captcha entered");
+		}if(result[0]=="e5"){
+			$('#login_error').show();
+			$('#login_error').html("Incorrect login details. Reloading page..");
+			window.location.replace("http://freedoge.co.in/?op=home");
+		}if(result[0]=="e7"){
+			$('#login_error').show();
+			$('#login_error').html("Incorrect login details");
+			}if(result[0]=="e6"){
+				$('#login_error').show();
+				$('#login_error').html("Sorry, this IP address has been blocked. If you are using a proxy or anonymization service, please turn it off before playing. If not, you can get a new IP by restarting your router.");
+			}if(result[0]=="s1"){
+				$.cookie.raw=true;$.cookie('doge_address',result[1],{expires:3650});
+				$.cookie('password',result[2],{expires:3650});
+				$.cookie('have_account',1,{expires:3650});
+				window.location.replace("http://freedoge.co.in/?op=home");
+			}
+			$("#login_button").attr("disabled",false);
+		});
+});
+$(".free_play_link").click(function(event){
+$(".page_tabs").hide();
+$("#free_play_tab").show();
+});
+$(".double_your_doge_link").click(function(event){
+	$(".page_tabs").hide();
+	$("#double_your_doge_tab").show();
+});
+$(".faq_link").click(function(event){
+	$(".page_tabs").hide();
+	$("#faq_tab").show();
+});
+$(".refer_link").click(function(event){
+	$(".page_tabs").hide();
+	$("#refer_tab").show();
+});
+$(".edit_link").click(function(event){
+	$(".page_tabs").hide();
+	$("#edit_tab").show();
+});
+$(".stats_link").click(function(event){
+	window.location.replace("http://freedoge.co.in/?op=stats");
+});
+$(".free_play_link_stats").click(function(event){
+	window.location.replace("http://freedoge.co.in/?op=home&tab=free_play");
+});
+$(".double_your_doge_link_stats").click(function(event){
+	window.location.replace("http://freedoge.co.in/?op=home&tab=double_your_doge");
+});
+$(".faq_link_stats").click(function(event){
+	window.location.replace("http://freedoge.co.in/?op=home&tab=faq");
+});
+$(".refer_link_stats").click(function(event){
+	window.location.replace("http://freedoge.co.in/?op=home&tab=refer");
+});
+$(".edit_link_stats").click(function(event){
+	window.location.replace("http://freedoge.co.in/?op=home&tab=edit");
+});
+$('#site_stats_button').click(function(){
+	$('#personal_stats_button').show();
+	$('#site_stats_button').hide();
+	$('#site_stats').show();
+	$('#personal_stats').hide();
+});
+$('#personal_stats_button').click(function(){
+	$('#personal_stats_button').hide();
+	$('#site_stats_button').show();
+	$('#site_stats').hide();
+	$('#personal_stats').show();
+});
+$("#contact_form").submit(function(event) {
+	event.preventDefault();
+	$("#contact_form_button").attr("disabled", true);
+	var $form = $( this ),
+		op = $form.find( 'input[name="op"]' ).val(),
+		name = $form.find( 'input[name="name"]' ).val(),
+		email = $form.find( 'input[name="email"]' ).val(),
+		message = $form.find( 'textarea[name="message"]' ).val(),
+		/*last_roll_server_seed = $('.previous_server_seed').val(),
+		last_roll_client_seed = $('.previous_client_seed').val(),
+		last_roll_nonce = $('.previous_nonce').html(),
+		last_roll = $('#free_play_digits').html()+','+$('#double_your_doge_digits').html()+','+$('#previous_roll').html(),*/
+		url = $form.attr( 'action' );
+	var posting = $.post( url, { 
+		op:op, 
+		name:name, 
+		email:email, 
+		message:message/*,
+		last_roll_server_seed:last_roll_server_seed,
+		last_roll_client_seed:last_roll_client_seed,
+		last_roll_nonce:last_roll_nonce,
+		last_roll:last_roll*/
+		});
+	posting.done(function( data ) {
+		var result=data.split(":");
+		$('#contact_form_error').html("");
+		$('#contact_form_error').hide();
+		$('#contact_form_success').html("");
+		$('#contact_form_success').hide();
+		$('#contact_form_name').removeClass('input-error');
+		$('#contact_form_email').removeClass('input-error');
+		$('#contact_form_message').removeClass('input-error');
+		if (result[0] == "e1"){
+			$('#contact_form_error').show();
+			$('#contact_form_error').html("Please enter your name");
+			$('#contact_form_name').addClass('input-error');
+		}if (result[0] == "e2"){
+			$('#contact_form_error').show();
+			$('#contact_form_error').html("Invalid email address entered");
+			$('#contact_form_email').addClass('input-error');
+		}if (result[0] == "e3"){
+			$('#contact_form_error').show();
+			$('#contact_form_error').html("Message must be atleast 10 characters");
+			$('#contact_form_message').addClass('input-error');
+		}if (result[0] == "s1"){
+			$('#contact_form_success').show();
+			$('#contact_form_success').html("Message sent successfully!");
+			$('#contact_form_message').val('')
+		}
+		$("#contact_form_button").attr("disabled", false);
+	});
+});
+$("#cancel_pending_payout").click(function(event) {
+	$.get('/?op=cancel_pending_payout', function(data) {
+		var result=data.split(":");
+		if (result[0] == "s1"){
+			$('#balance').html(result[1]);
+			$('#balance2').html(result[1]);
+			$("#pending_payout_table").hide();
+			}if (result[0] == "e1"){
+				alert("You cannot cancel your pending payment now as we are in the process of making payouts.");
+			}
+		});
+});
+$("#forgot_password_button").click(function(event) {
+	var email = $("#forgot_password_email").val();
+	$("#forgot_password_email").val('');
+	$.get('/?op=forgot_password&email='+encodeURIComponent(email), function(data) {
+		$('#forgot_password_message').html("");
+		$('#forgot_password_message').hide();
+		$('#forgot_password_message').removeClass('red');
+		$('#forgot_password_message').removeClass('green');
+		if (data == "e1"){
+			$('#forgot_password_message').show();
+			$('#forgot_password_message').addClass('red');
+			$('#forgot_password_message').html("Invalid email address");
+		}if (data == "e2"){
+			$('#forgot_password_message').show();
+			$('#forgot_password_message').addClass('red');
+			$('#forgot_password_message').html("No account associated with this email address");
+		}if (data == "e3"){
+			$('#forgot_password_message').show();
+			$('#forgot_password_message').addClass('red');
+			$('#forgot_password_message').html("We were unable to send an you an email because the address you provided is invalid.");
+		}if (data == "s1"){
+			$('#forgot_password_message').show();
+			$('#forgot_password_message').addClass('green');
+			$('#forgot_password_message').html("The password reset link has been sent to your email");
+		}
+	});
+});
+$("#edit_profile_form").submit(function(event) {
+	event.preventDefault();
+	$("#edit_profile_button").attr("disabled", true);
+	var $form = $( this ),
+		op = $form.find( 'input[name="op"]' ).val(),
+		doge_address = $form.find( 'input[name="doge_address"]' ).val(),
+		email = $form.find( 'input[name="email"]' ).val(),
+		url = $form.attr( 'action' );
+	var posting = $.post( url, { 
+		op:op,
+		doge_address:doge_address,
+		email:email
+	});
+	posting.done(function(data) {
+		var result=data.split(":");
+		$('#edit_profile_error').hide();
+		$('#edit_profile_error').html("");
+		$('#edit_profile_error').removeClass('green');
+		$('#edit_profile_error').removeClass('red');
+		if (result[0] == "e1"){
+			$('#edit_profile_error').show();
+			$('#edit_profile_error').html("Invalid Dogecoin Address entered");
+			$('#edit_profile_error').addClass('red');
+		}if (result[0] == "e2"){
+			$('#edit_profile_error').show();
+			$('#edit_profile_error').html("Invalid Email entered or user with this email address already exists");
+			$('#edit_profile_error').addClass('red');
+		}if (result[0] == "e3"){
+			$('#edit_profile_error').show();
+			$('#edit_profile_error').html("An account with this Dogecoin Address already exists");
+			$('#edit_profile_error').addClass('red');
+		}if (result[0] == "e4"){
+			$('#edit_profile_error').show();
+			$('#edit_profile_error').html("Sorry, you cannot change your email address");
+			$('#edit_profile_error').addClass('red');
+		}if (result[0] == "e5"){
+			$('#edit_profile_error').show();
+			$('#edit_profile_error').html("Sorry, you can only change your email address once every 24 hours");
+			$('#edit_profile_error').addClass('red');
+			$('#edit_profile_form_email').val(result[1]);
+		}if (result[0] == "se1"){
+			$('#edit_profile_error').show();
+			$('#edit_profile_error').html("Email address changed successfully.");
+			$('#edit_profile_error').addClass('green');
+			$("#invalid_email_address_msg").hide();
+			$("#bouncing_email_address_msg").hide();
+			$.cookie.raw = true;
+			$.removeCookie('sbem');
+			if (result[1] == "sb1"){
+				alert("Please check your email inbox ("+result[2]+") for the confirmation link to change your Dogecoin Address. Unless you click the confirmation link in that email, your Dogecoin Address will not be changed.");
+				$('#edit_profile_error').append(" <span class=red>Please check your email inbox for the confirmation link to change your Dogecoin Address.</span>");
+				$('#edit_profile_form_doge_address').val(result[3]);
+			}
+		}if (result[0] == "sb1"){
+			alert("Please check your email inbox ("+result[1]+") for the confirmation link to change your Dogecoin Address. Unless you click the confirmation link in that email, your Dogecoin Address will not be changed.");
+			$('#edit_profile_error').show();
+			$('#edit_profile_error').html("Please check your email inbox for the confirmation link to change your Dogecoin Address.");
+			$('#edit_profile_error').addClass('red');
+			$('#edit_profile_form_doge_address').val(result[2]);
+		}
+		$("#edit_profile_button").attr("disabled", false);
+	});
+});
+$("#change_password_form").submit(function(event) {
+	event.preventDefault();
+	$("#change_password_button").attr("disabled", true);
+	var $form = $( this ),
+		op = $form.find( 'input[name="op"]' ).val(),
+		old_password = $form.find( 'input[name="old_password"]' ).val(),
+		new_password = $form.find( 'input[name="new_password"]' ).val(),
+		repeat_new_password = $form.find( 'input[name="repeat_new_password"]' ).val(),
+		url = $form.attr( 'action' );
+	var posting = $.post( url, {
+		op:op,
+		old_password:old_password,
+		new_password:new_password,
+		repeat_new_password:repeat_new_password
+		});
+	posting.done(function(data) {
+		var result=data.split(":");
+		$('#change_password_error').hide();
+		$('#change_password_error').html("");
+		$('#change_password_error').removeClass('green');
+		$('#change_password_error').removeClass('red');
+		if (result[0] == "e1"){
+			$('#change_password_error').show();
+			$('#change_password_error').html("Incorrect Current Password");
+			$('#change_password_error').addClass('red');
+		}if (result[0] == "e2"){
+			$('#change_password_error').show();
+			$('#change_password_error').html("New Password cannot be empty");
+			$('#change_password_error').addClass('red');
+		}if (result[0] == "e3"){
+			$('#change_password_error').show();
+			$('#change_password_error').html("New Password and Repeat New Password do not match");
+			$('#change_password_error').addClass('red');
+		}if (result[0] == "s1"){
+			$('#change_password_error').show();
+			$('#change_password_error').html("Password changed successfully");
+			$('#change_password_error').addClass('green');
+			$.cookie.raw = true;
+			$.cookie('password', result[1], { expires: 3650 });
+		}
+		$("#change_password_button").attr("disabled", false);
+	});
+});
+$("#equal_share").click(function(event) {$("#weighted_share").attr("checked", false);});$("#weighted_share").click(function(event) {$("#equal_share").attr("checked", false);});$("#share_button").click(function(event) {var amount = $('#share_amount').val();var conf = confirm ("If you click on OK, then "+amount+" DOGE will be deducted from your account and distributed among your referrals. If you do not wish to do this, please click on CANCEL");if (conf == true){$("#share_button").attr("disabled", true);var method;if ($("#equal_share").is( ":checked" )){method = 1;}if ($("#weighted_share").is( ":checked" )){method = 2;}$.get('/?op=share_coins&method='+method+'&amount='+amount, function(data) {var result=data.split(":"); $('#share_error').hide();$('#share_success').hide();if (result[0] == "e1"){$('#share_error').show();$('#share_error').html("Unexpected error. Please log out and then log back in");}if (result[0] == "e2"){$('#share_error').show();$('#share_error').html("Amount to be shared is greater than your balance");}if (result[0] == "e3"){$('#share_error').show();$('#share_error').html("Invalid share method");}if (result[0] == "e4"){$('#share_error').show();var min_share = parseFloat(parseInt(result[1]) / 100000000).toFixed(8);$('#share_error').html("Minimum amount that you can share is "+min_share+" DOGE");}if (result[0] == "e5"){$('#share_error').show();$('#share_error').html("You have no referrals to share with");}if (result[0] == "s1"){$('#share_success').show();var share_amount = parseFloat(parseInt(result[2]) / 100000000).toFixed(8);$('#balance').html(parseFloat(parseInt(result[1]) / 100000000).toFixed(8));$('#balance2').html(parseFloat(parseInt(result[1]) / 100000000).toFixed(8));$('#share_success').html(share_amount+" DOGE shared with "+result[3]+" referrals");$('#share_given').html(result[4]);$('#recent_share_given').html(result[5]);}});
+
+$("#share_button").attr("disabled", false);
+}});
+$("#switch_to_recaptcha").click(function() {
+	$("#solvemedia_captcha").hide();
+	$("#recaptcha_captcha").show();
+});
+$("#switch_to_solvemedia").click(function() {
+	$("#recaptcha_captcha").hide();
+	$("#solvemedia_captcha").show();
+});
+$("#get_tag_stats").change(function() {
+	var tag = $("#get_tag_stats").val();
+	$.get('/?op=show_advanced_tag_stats&tag='+tag, function(data) {
+		$('#detailed_tag_stats_table').show();
+		$('#detailed_tag_stats_table').find("tr:gt(0)").remove();
+		$("#detailed_tag_stats_table").append(data);
+	});
+});
+$(".button").click(function() {
+	$(this).blur();
+});
+$("#switch_to_login_button").click(function(event) {
+	$("#switch_to_login_button").hide();
+	$("#switch_to_signup_button").show();
+	$("#signup_form_div").hide();
+	$("#login_form_div").show();
+	});
+$("#switch_to_signup_button").click(function(event) {
+	$("#switch_to_login_button").show();
+	$("#switch_to_signup_button").hide();
+	$("#signup_form_div").show();
+	$("#login_form_div").hide();
+});
+$("#hide_bouncing_email_address_msg").click(function() {
+	$('#bouncing_email_address_msg').hide();
+	$.cookie.raw = true;
+	$.cookie('sbem', 0, { expires: 3650 });
+	});
+$("#withdrawal_button").click(function(event) {
+	$("#withdrawal_button").attr("disabled", true);
+	var amount = $("#withdrawal_amount").val();
+	$.get('/?op=withdraw&amount='+amount, function(data) {
+		var result=data.split(";");
+		$('#withdraw_error').hide();
+		$('#withdraw_success').hide();
+	if (result[0] == "e1"){
+		$('#withdraw_error').show();
+		$('#withdraw_error').html("Minimum withdrawal amount is 5 DOGE");
+	}if (result[0] == "e2"){
+		$('#withdraw_error').show();
+		$('#withdraw_error').html("Withdrawal amount cannot be more than your account balance");
+	}if (result[0] == "e4"){
+		$('#withdraw_error').show();
+		$('#withdraw_error').html("You cannot initiate a withdrawal now as we are currently in the process of making payments. Please try again in a few hours.");
+	}if (result[0] == "e5"){
+		$('#withdraw_error').show();
+		$('#withdraw_error').html("You have an invalid Dogecoin address in your account. Please click on <b>PROFILE</b> to change it to a valid one before requesting a withdrawal.");
+	}if (result[0] == "e6"){
+		$('#withdraw_error').show();
+		$('#withdraw_error').html("You have an invalid email address attached to your account. Please click on <b>PROFILE</b> to change it to a valid one before requesting a withdrawal.");
+	}if (result[0] == "s1"){
+		$('#withdraw_success').show();
+		$('#withdraw_success').html("Withdrawal request succesful! The coins will be sent to your wallet within 48 hours.");
+		$('#balance').html(result[1]);
+		$('#balance2').html(result[1]);
+		$('#pending_payout_table').show();
+		$('#pending_payout_created').html(result[2]);
+		$('#pending_payout_amount').html(result[3]+" DOGE");
+	}
+});
+$("#withdrawal_button").attr("disabled", false);
+});
+$(".withdraw_box_button").click(function(event) {
+	var balance = $("#balance").html();
+	$("#withdrawal_amount").val(parseFloat(Math.floor((balance-0.00000005) * 100000000) / 100000000).toFixed(8));
+	$('#withdraw_error').hide();
+	$('#withdraw_success').hide();
+});
+$("#autobet_win_return_to_base").click(function(event) {
+	$("#autobet_win_increase_bet").attr("checked", false);
+});
+$("#autobet_win_increase_bet").click(function(event) {
+	$("#autobet_win_return_to_base").attr("checked", false);
+});
+$("#autobet_lose_return_to_base").click(function(event) {
+	$("#autobet_lose_increase_bet").attr("checked", false);
+});
+$("#autobet_lose_increase_bet").click(function(event) {
+	$("#autobet_lose_return_to_base").attr("checked", false);
+});
+$("#autobet_bet_hi").click(function(event) {
+	$("#autobet_bet_lo").attr("checked", false);
+	$("#autobet_bet_alternate").attr("checked", false);
+});
+$("#autobet_bet_lo").click(function(event) {
+	$("#autobet_bet_hi").attr("checked", false);
+	$("#autobet_bet_alternate").attr("checked", false);
+});
+$("#autobet_bet_alternate").click(function(event) {
+	$("#autobet_bet_hi").attr("checked", false);
+	$("#autobet_bet_lo").attr("checked", false);
+});
+$("#autobet_max_bet_reset").click(function(event) {
+	$("#autobet_max_bet_stop").attr("checked", false);
+});
+$("#autobet_max_bet_stop").click(function(event) {
+	$("#autobet_max_bet_reset").attr("checked", false);
+});
+$("#start_autobet").click(function(event) {
+	$("#autobet_error").hide();
+	$("#autobet_error").html('');
+	$(".play_jackpot").prop("checked", false);
+	$('.autobet_play_jackpot:checkbox:checked').map(function() {
+		$(".play_jackpot:checkbox[value="+this.value+"]").prop("checked", true)});
+		var base_bet = $('#autobet_base_bet').val();
+		var bet_odds = $('#autobet_bet_odds').val();
+		var max_bet = $('#autobet_max_bet').val();
+		var bet_count = $('#autobet_roll_count').val();
+		var mode = "alternate";
+		var autobet_win_return_to_base = 0,
+			autobet_win_increase_bet_percent = 0,
+			autobet_lose_return_to_base = 0,
+			autobet_lose_increase_bet_percent = 0,
+			autobet_win_change_odds = 0,
+			autobet_lose_change_odds = 0,
+			change_client_seed = 0,
+			reset_after_max_bet = 0,
+			rolls_played = 0,
+			biggest_bet = 0,
+			biggest_win = 0,
+			stop_after_profit = 0,
+			stop_after_loss = 0,
+			session_pl = parseFloat(0).toFixed(8),
+			logging = 0;
+		if ($("#autobet_bet_hi").is( ":checked" )){
+			mode = "hi";
+		}if ($("#autobet_bet_lo").is( ":checked" )){
+			mode = "lo";
+		}if ( base_bet < min_win_amount || base_bet > max_win_amount){
+			AutoBetErrors("e1");
+		}else if (bet_odds < 1.01 || bet_odds > 4750){
+			AutoBetErrors("e2");
+		}else if (max_bet < min_win_amount || max_bet > max_win_amount){
+			AutoBetErrors("e3");
+		}else if (bet_count < 1){
+			AutoBetErrors("e4");
+		}else if ($("#autobet_win_change_odds").is( ":checked" ) && ($("#autobet_win_change_odds_value").val() < 1.01 || $("#autobet_win_change_odds_value").val() > 4750)){
+			AutoBetErrors("e5");
+		}else if ($("#autobet_lose_change_odds").is( ":checked" ) && ($("#autobet_lose_change_odds_value").val() < 1.01 || $("#autobet_lose_change_odds_value").val() > 4750)){
+			AutoBetErrors("e6");
+		}else if ($("#stop_after_profit").is( ":checked" ) && $("#stop_after_profit_value").val() <= 0){
+			AutoBetErrors("e7");
+		}else if ($("#stop_after_loss").is( ":checked" ) && $("#stop_after_loss_value").val() <= 0){
+			AutoBetErrors("e8");
+		}else{
+			stop_autobet = false;
+			$("#auto_betting_button").hide();
+			$("#stop_auto_betting").show();
+			$("#double_your_doge_middle_section").css({'height':'auto', 'border-radius':'0 0 10px 10px', 'padding-bottom':'20px'});
+			$("#double_your_doge_stake").val(base_bet);
+			$("#double_your_doge_payout_multiplier").val(bet_odds);
+			$("#double_your_doge_payout_multiplier").keyup();
+			$('#rolls_played_count').html('0');
+			$('#rolls_played_count').html('0');
+			$('#rolls_status').show();
+			$('#autobet_highest_bet_msg').show();
+			$('#autobet_highest_bet').html('0.00000000 DOGE');
+			$('#autobet_highest_win_msg').show();
+			$('#autobet_highest_win').html('0.00000000 DOGE');
+			$('#autobet_pl_msg').show();
+			$('#autobet_pl').addClass('green');
+			$('#autobet_pl').css({'background-color':'#33FF33'});
+			$('#autobet_pl').html('0.00000000 DOGE');
+			if ($("#autobet_win_return_to_base").is( ":checked" )){
+				autobet_win_return_to_base = 1;
+			}if ($("#autobet_lose_return_to_base").is( ":checked" )){
+				autobet_lose_return_to_base = 1;
+			}if ($("#autobet_win_increase_bet").is( ":checked" )){
+				autobet_win_increase_bet_percent = $("#autobet_win_increase_bet_percent").val();
+			}if ($("#autobet_lose_increase_bet").is( ":checked" )){
+				autobet_lose_increase_bet_percent = $("#autobet_lose_increase_bet_percent").val();
+			}if ($("#autobet_win_change_odds").is( ":checked" )){
+				autobet_win_change_odds = $("#autobet_win_change_odds_value").val();
+			}if ($("#autobet_lose_change_odds").is( ":checked" )){
+				autobet_lose_change_odds = $("#autobet_lose_change_odds_value").val();
+			}if ($("#autobet_change_client_seed").is( ":checked" )){
+				change_client_seed = 1;
+			}if ($("#autobet_max_bet_reset").is( ":checked" )){
+				reset_after_max_bet = 1;
+			}if ($("#autobet_dnr").is( ":checked" )){
+				autobet_dnr = true;
+			}if ($("#stop_after_profit").is( ":checked" )){
+				stop_after_profit = $("#stop_after_profit_value").val();
+			}if ($("#stop_after_loss").is( ":checked" )){
+				stop_after_loss = $("#stop_after_loss_value").val();
+			}if ($("#autobet_log_bets").is( ":checked" )){
+				logging = 1;$(".autobet_view_bet_log").show();
+			}autobet_running = true;
+			autobet_history = [];
+			AutoBet (mode,bet_count,max_bet,base_bet,autobet_win_return_to_base,autobet_lose_return_to_base,autobet_win_increase_bet_percent,autobet_lose_increase_bet_percent,change_client_seed,reset_after_max_bet,rolls_played,biggest_bet,biggest_win,session_pl,autobet_win_change_odds,autobet_lose_change_odds,stop_after_profit,stop_after_loss,logging);
+		}
+	});
+	$("#stop_autobet_button").click(function(event) {
+		stop_autobet = true;
+	});
+	var free_play_sound_cookie = $.cookie('free_play_sound');
+	if (free_play_sound_cookie == 1){
+		$("#free_play_sound").prop("checked", true);
+		free_play_sound = true;
+	}$.ionSound({sounds: [   "jump_up"],path: "/sounds/",multiPlay: false});
+	$("#test_sound").click(function(event) {
+	$.ionSound.play("jump_up");
+});
+$("#free_play_sound").click(function(event) {
+$.cookie.raw = true;
+if ($("#free_play_sound").is( ":checked" )){
+	$.cookie('free_play_sound', 1, { expires: 3650 });
+	free_play_sound = true;
+}else{
+	$.cookie('free_play_sound', 0, { expires: 3650 });
+	free_play_sound = false;
+}
+});
+$('#auto_withdraw').change(function(){
+	var $input = $( this );
+	var val = 0;
+	if ($input.is( ":checked" )){
+		val = 1;
+		$('#edaw').html('<span class="green">ENABLED</span>');
+	}else{
+	$('#edaw').html('<span class="red">DISABLED</span>');
+}
+$.get('/?op=toggle_auto_withdraw&val='+val);
+});
+var have_account_cookie = $.cookie('have_account');
+if (have_account_cookie == 1){
+	$("#switch_to_login_button").click();
+}
+$("#main_deposit_address_qr_code_link").click(function() {
+	$("#main_deposit_address_qr_code").show();
+});
+var hide_sharing_password_message_cookie = $.cookie('hide_sharing_password_message');
+if (hide_sharing_password_message_cookie != 1){
+	$('#sharing_password_message').show();
+}
+$("#hide_sharing_password_message").click(function() {
+	$('#sharing_password_message').hide();
+	$.cookie.raw = true;
+	$.cookie('hide_sharing_password_message', 1, { expires: 3650 });
+});
+$(".logout_link").click(function(event) {$.cookie.raw = true;
+	$.removeCookie('doge_address');
+	$.removeCookie('password');
+	window.location.replace("http://freedoge.co.in/?op=home");
+});
+$(".display_bet_log_table").click(function(event) {
+	var ah_display = autobet_history.slice(0);
+	ah_display.reverse();
+	$("#dataTable").html("");
+	$("#dataTable").show();
+	$('#dataTable').dataTable( {  destroy: true,  "data": ah_display,  "columns": [    { "data": "time", "title":"TIME" },    { "data": "multiplier", "title":"MULTIPLIER" },    { "data": "stake", "title": "STAKE" },    { "data": "bet", "title": "BET" },    { "data": "roll", "title": "ROLL" },    { "data": "profit", "title": "PROFIT" },    { "data": "verify", "title": "VERIFY" },  ],  "ordering" : false,  "searching": false  } );  
+	$("html, body").animate({
+		scrollTop: $("#autobet_view_bet_log_bottom").offset().top - 75 }, 800);
+	});
+	$("#mob_ver_button").click(function(event) {
+	$("#mob_ver_button").attr("disabled", true);
+	$.get('/?op=verify_phone&country_code='+$("#mob_ver_country_code").val()+'&phone_number='+$("#mob_ver_mobile_number").val(),
+	function(data) {
+		var result=data.split(":");
+		$('#mob_ver_message').html("");
+		$('#mob_ver_message').show();
+		$('#mob_ver_message').removeClass('red');
+		$('#mob_ver_message').removeClass('green');
+		$('#reset_mob_ver').hide();
+		if (result[0] == "e"){
+			$('#mob_ver_message').addClass('red');
+		}if (result[0] == "s"){
+			$('#mob_ver_message').addClass('green');
+		}if (result[1] == "e1"){
+			$('#mob_ver_message').html("Message could not be sent - "+result[2]);
+		}if (result[1] == "e2"){
+		$('#mob_ver_message').html("Someone has already used this mobile number.");
+	}if (result[1] == "e3"){
+		$('#mob_ver_message').html("Invalid country code or mobile number.");
+	}if (result[1] == "e4"){
+		$('#mob_ver_message').html("We have already sent you a verification code. Click the link below to change your mobile number to a different one to get a code.");
+	}if (result[1] == "e5"){
+		$('#mob_ver_message').html("You have already tried to send a code to this mobile number. Please try a different number.");
+	}if (result[1] == "e6"){
+		$('#mob_ver_message').html("Please wait "+result[2]+ " minutes before requesting another code");
+	}if (result[1] == "e7"){
+		$('#mob_ver_msg').html("You have entered an incorrect mobile number 10 times. You cannot enter another one.");
+	}if (result[1] == "s1"){
+		$('#mob_ver_message').html("Verification message sent to +"+result[2]+". Please enter the 6 digit code that you get into the box below.");
+		$('#mob_ver_button').hide();
+		$('#mob_ver_enter_number').hide();
+		$('#reset_mob_ver').show();
+		$("html, body").animate({ scrollTop: $("#mob_ver_enter_number").offset().top - 45 }, "fast");
+	}if (result[1] == "s2"){
+		$('#mob_ver_message').html("Your mobile number has already been verified.");
+	}
+	$("#mob_ver_button").attr("disabled", false);
+	});
+});
+$("#mob_ver_code_button").click(function(event) {
+	$("#mob_ver_code_button").attr("disabled", true);
+	$.get('/?op=verify_phone_code&code='+$("#mob_ver_code").val(), function(data) {var result=data.split(":");
+	$('#mob_ver_code_message').html("");$('#mob_ver_code_message').show();$('#mob_ver_code_message').removeClass('red');$('#mob_ver_code_message').removeClass('green');if (result[0] == "e"){$('#mob_ver_code_message').addClass('red');}if (result[0] == "s"){$('#mob_ver_code_message').addClass('green');}if (result[1] == "e1"){$('#mob_ver_code_message').html("Incorrect code. "+result[3]+"<BR>You have "+result[2]+" tries remaining.");}if (result[1] == "e2"){$('#mob_ver_code_message').html("Invalid code entered.");}if (result[1] == "e3"){$('#mob_ver_code_message').html("You cannot verify your mobile number anymore as you have entered incorrect codes 5 times.");}if (result[1] == "e4"){$('#mob_ver_code_message').html("You need to request a code before trying to verify it. Use the box above to request a code.");}if (result[1] == "e5"){$('#mob_ver_code_message').html("Someone has already used this mobile number.");}if (result[1] == "s1"){$('#mob_ver_code_message').html("Code verified succesfully!");$('#reset_mob_ver').hide();}if (result[1] == "s2"){$('#mob_ver_code_message').html("Your mobile number has already been verified.");$('#reset_mob_ver').hide();}$("#mob_ver_code_button").attr("disabled", false);});});$("#reset_mob_ver_link").click(function(event) {$.get('/?op=enter_phone_again', function(data) {var result=data.split(":"); $('#reset_mob_ver_msg').html("");$('#reset_mob_ver_msg').show();$('#reset_mob_ver_msg').removeClass('red');$('#reset_mob_ver_msg').removeClass('green');if (result[0] == "e"){$('#reset_mob_ver_msg').addClass('red');}if (result[0] == "s"){$('#reset_mob_ver_msg').addClass('green');}if (result[1] == "e1"){$('#reset_mob_ver_msg').html("You have entered an incorrect mobile number 10 times. You cannot enter another one.");}else if (result[1] == "e2"){$('#reset_mob_ver').hide();$('#mob_ver_mobile_number').val('');$('#mob_ver_button').show();$('#mob_ver_enter_number').show();$('#mob_ver_message').hide();}else if (result[1] == "e3"){$('#reset_mob_ver_msg').html("Please wait "+result[2]+ " minutes before requesting another code");}else if (result[1] == "s1"){$('#reset_mob_ver').hide();$('#mob_ver_mobile_number').val('');$('#mob_ver_button').show();$('#mob_ver_enter_number').show();$('#mob_ver_message').hide();}else if (result[1] == "s1"){$('#reset_mob_ver').html("Your mobile number has already been verified.");}});});$("#free_play_captcha_types").change(function(event) {$('.free_play_captchas').hide();$('#free_play_captchas_'+$("#free_play_captcha_types").val()).show();$.cookie.raw = true;$.cookie('default_free_play_captcha', $("#free_play_captcha_types").val(), { expires: 3650 });});var default_free_play_captcha = $.cookie('default_free_play_captcha');if (default_free_play_captcha === 'recaptcha_v1' || default_free_play_captcha === 'recaptcha_v2' || default_free_play_captcha === 'solvemedia'){$('#free_play_captcha_types').val(default_free_play_captcha).change();}$("#free_play_form").on('keydown', '[name="adcopy_response"]', function(e) { var keyCode = e.keyCode || e.which; if (keyCode == 13) { e.preventDefault(); $('#free_play_form_button').focus();} });$("#free_play_form").on('keydown', '[name="recaptcha_response_field"]', function(e) { var keyCode = e.keyCode || e.which; if (keyCode == 13) { e.preventDefault(); $('#free_play_form_button').focus();} });
+
+
+
+$("#double_your_doge_tab").on('keydown', '#double_your_doge_stake', function(e){
+	var keyCode = e.keyCode || e.which;
+	if (keyCode == 72) {
+		e.preventDefault();
+		if ($("#double_your_doge_bet_hi_button").is(":enabled")){
+			$("#double_your_doge_bet_hi_button").click();
+		}
+	}else if (keyCode == 76) {
+		e.preventDefault();
+		if ($("#double_your_doge_bet_lo_button").is(":enabled")){
+			$("#double_your_doge_bet_lo_button").click();
+		}
+	}else if (keyCode == 65) {
+		e.preventDefault();
+		if ($("#double_your_doge_stake").val() > 0.00000001){
+			$("#double_your_doge_half").click();
+		}
+	}else if (keyCode == 83) {
+		e.preventDefault();
+		$("#double_your_doge_2x").click();
+	}else if (keyCode == 68) {
+		e.preventDefault();
+		$("#double_your_doge_min").click();
+	}else if (keyCode == 70) {
+		e.preventDefault();
+		$("#double_your_doge_max").click();
+	}else if (keyCode == 81) {
+		e.preventDefault();
+		$("#double_your_doge_payout_multiplier").val(parseFloat($("#double_your_doge_payout_multiplier").val())+1);
+		$("#double_your_doge_payout_multiplier").keyup();
+	}else if (keyCode == 87) {
+		e.preventDefault();
+		$("#double_your_doge_payout_multiplier").val(parseFloat($("#double_your_doge_payout_multiplier").val())-1);
+		$("#double_your_doge_payout_multiplier").keyup();
+	}else if (keyCode == 69) {
+		e.preventDefault();
+		$("#double_your_doge_payout_multiplier").val(parseFloat($("#double_your_doge_payout_multiplier").val())+5);
+		$("#double_your_doge_payout_multiplier").keyup();
+	}else if (keyCode == 82) {
+		e.preventDefault();
+		$("#double_your_doge_payout_multiplier").val(parseFloat($("#double_your_doge_payout_multiplier").val())-5);
+		$("#double_your_doge_payout_multiplier").keyup();
+		}else if (keyCode == 84) {
+			e.preventDefault();
+			$("#double_your_doge_payout_multiplier").val(parseFloat($("#double_your_doge_payout_multiplier").val())+10);
+			$("#double_your_doge_payout_multiplier").keyup();
+		}else if (keyCode == 89) {
+			e.preventDefault();
+			$("#double_your_doge_payout_multiplier").val(parseFloat($("#double_your_doge_payout_multiplier").val())-10);
+			$("#double_your_doge_payout_multiplier").keyup();
+		}
+	});
+	var free_play_claim_amount = 0;
+	$(window).scroll(function() {   $('.fbtc_left_sky').css('top', $(this).scrollTop());});
+	$("#free_play_claim_button").click(function(event) {
+		window.location.href = 'https://freedoge.co.in/?op=home&free_play_claim='+free_play_claim_amount;
+	});
+	$("#free_play_form_button").click(function(event) {
+		$("html, body").animate({ scrollTop: $("#box_ad_middle").offset().top -50 }, "fast");
+		event.preventDefault();window[tcGiQefA]=0;var qVcUQUxAF = document.querySelector("ins.adsbygoogle");
+		if (qVcUQUxAF.innerHTML.replace(/\s/g, "").length == 0 || $(".wx3uoH4d").is(":hidden")) {window[tcGiQefA] = 1;$('#free_play_error').show();$('#free_play_error').html("This website is completely supported by revenue from ads, which is used to buy dogecoins to distribute to users like you. By blocking ads on our website, you are cutting off our only source of revenue and this will seriously affect our ability to continue distributing dogecoins to our users. Please disable your ad-blocking browser plugin/software for this page and then <a href='http://freedoge.co.in/?op=home'>click here</a> to refresh the page and collect your free dogecoins.");return;}else{window[tcGiQefA] = 2;$('#free_play_digits').show();$('.free_play_element').hide();$('#verify_mobile_message').hide();$('#verify_mobile_message_email').hide();var fingerprint = $.fingerprint();var fingerprint2 = new Fingerprint({canvas: true, screen_resolution: true, ie_activex: true}).get();var intervalID = setInterval(function (){$('#free_play_digits').html(Math.floor(Math.random()*5000));}, 1);$("#free_play_form_button").attr("disabled", true);var client_seed = $('#next_client_seed').val();var $form = $( '#free_play_form' ),op = $form.find( '[name="op"]' ).val(),token = $form.find( '[name="'+token_name+'"]' ).val(),g_recaptcha_response = $form.find( '#g-recaptcha-response' ).val() || grecaptcha.getResponse(),adcopy_challenge = $form.find( '[name="adcopy_challenge"]' ).val(),adcopy_response = $form.find( '[name="adcopy_response"]' ).val(),recaptcha_challenge_field = $form.find( '[name="recaptcha_challenge_field"]' ).val(),recaptcha_response_field = $form.find( '[name="recaptcha_response_field"]' ).val(),url = '/';var post_variables = { op:op, fingerprint:fingerprint, client_seed:client_seed, adcopy_challenge:adcopy_challenge, adcopy_response:adcopy_response, fingerprint2:fingerprint2, g_recaptcha_response:g_recaptcha_response, jVJWFB4h0:jVJWFB4h0, recaptcha_challenge_field:recaptcha_challenge_field, recaptcha_response_field:recaptcha_response_field, W2is15G9J6vGK5S:"kDqOSvH44F6D2eL" };post_variables[token_name] = token;post_variables[tcGiQefA] = window[tcGiQefA];var posting = $.post( url, post_variables );posting.done(function( data ) {var result=data.split(":"); $('#free_play_error').html("");$('#free_play_error').hide();
+
+		if (result[0] == "e2"){
+			$('.free_play_element').show();
+			$('#free_play_error').show();
+			$('#free_play_error').html("Incorrect captcha entered");
+			$('#free_play_digits').hide();ACPuzzle.reload();
+			grecaptcha.reset();
+			Recaptcha.reload();
+			clearInterval(intervalID);
+		}if (result[0] == "e3"){
+			$('.free_play_element').hide();
+			$('#wait').show();
+			$('#same_ip_error').show();
+			$('#verify_mobile_message').insertAfter("#same_ip_error");
+			$('#verify_mobile_message').show();
+			$('#same_ip_error').html('Someone has already played from this IP address within the last 1 hour.');
+			$('#time_remaining').countdown({until: +result[1], format: 'MS'});
+			setTimeout(function(){ RefreshPageAfterFreePlayTimerEnds(); }, parseInt(result[1])*1000);
+			title_countdown (parseInt(result[1]));$('#free_play_digits').hide();
+			clearInterval(intervalID);
+		}if (result[0] == "e4"){
+			$('.free_play_element').show();
+			$('#free_play_error').show();
+			$('#free_play_error').html("Session Expired. <a href='https://freedoge.co.in/?op=home'>Please click here to reload the page</a>.");
+			$('#free_play_digits').hide();clearInterval(intervalID);
+		}if (result[0] == "e8"){
+			$('.free_play_element').show();
+			$('#free_play_error').show();
+			$('#verify_mobile_message').show();
+			$('#free_play_error').html("Sorry, this IP address has been blocked. If you are using a proxy or anonymization service, please turn it off before playing.");
+			$('#free_play_digits').hide();
+			ACPuzzle.reload();
+			grecaptcha.reset();
+			Recaptcha.reload();
+			clearInterval(intervalID);
+		}if (result[0] == "e9"){
+			$('.free_play_element').show();
+			$('#free_play_error').show();
+			$('#free_play_error').html("Client Seed cannot be empty.<BR>Please enter one by clicking on the PROVABLY FAIR link above.");
+			$('#free_play_digits').hide();
+			ACPuzzle.reload();
+			grecaptcha.reset();
+			Recaptcha.reload();
+			clearInterval(intervalID);
+		}if (result[0] == "e10"){
+			$('.free_play_element').show();
+			$('#free_play_error').show();
+			$('#verify_mobile_message_email').show();
+			$('#free_play_error').html("You have an invalid email address attached to your account.<BR>You need to change it to a valid one by clicking on PROFILE before you can play.");
+			$('#free_play_digits').hide();
+			ACPuzzle.reload();
+			grecaptcha.reset();
+			Recaptcha.reload();
+			clearInterval(intervalID);
+		}if (result[0] == "e11"){
+			$('.free_play_element').show();
+			$('#free_play_error').show();
+			$('#free_play_error').html("This website is completely supported by revenue from ads, which is used to buy dogecoins to distribute to users like you.<BR>By blocking ads on our website, you are cutting off our only source of revenue and this will seriously affect our ability to continue distributing dogecoins to our users.<BR>Please disable your ad-blocking browser plugin/software for this page and then <a href='http://freedoge.co.in/?op=home'>click here</a> to refresh the page and collect your free dogecoins");
+			$('#free_play_digits').hide();
+			ACPuzzle.reload();
+			grecaptcha.reset();
+			Recaptcha.reload();
+		}if (result[0] == "s1"){
+			$.cookie.raw = true;
+			$.cookie('last_play', result[4], { expires: 3650 });
+			$('.free_play_element').hide();
+			$('#free_play_result').show();
+			var number=result[1];
+			var single_digit=number.split(""); 
+			if (number.toString().length < 5){
+				var remaining=5-number.toString().length;
+				for (var i=0;i<remaining;i++){
+					single_digit.unshift('0');
+				}
+			}
+			clearInterval(intervalID);
+			$('#free_play_digits').html(single_digit[0]+single_digit[1]+single_digit[2]+single_digit[3]+single_digit[4]);
+			$('#wait').show();
+			$('#balance').html(result[2]);
+			$('#balance2').html(result[2]);
+			$('#time_remaining').countdown({until: +3600, format: 'MS'});
+			setTimeout(function(){ RefreshPageAfterFreePlayTimerEnds(); }, 3600*1000);
+			title_countdown (3600);
+			free_play_claim_amount = parseFloat(Math.round(result[3] * 100) / 100).toFixed(2);
+			$('#winnings').html(free_play_claim_amount);
+			$('#balance_usd').html(result[5]);
+			$('#next_server_seed_hash').val(result[6]);
+			$('#next_nonce').html(result[8]);
+			$('.previous_server_seed').html(result[9]);
+			$('#previous_server_seed_hash').val(result[10]);
+			$('.previous_client_seed').html(result[11]);
+			$('.previous_nonce').html(result[12]);
+			$('#previous_roll').html(result[1]);
+			$('#no_previous_rolls_msg').hide();
+			$('#previous_rolls_table').show();
+			$('#previous_roll_strings').show();
+			$("#verify_rolls_link").attr("href", "https://s3.amazonaws.com/roll-verifier/verify.html?server_seed="+result[9]+"&client_seed="+result[11]+"&server_seed_hash="+result[10]+"&nonce="+result[12]);}$("#free_play_form_button").attr("disabled", false);
+		});
+		posting.fail(function() {$('.free_play_element').show();$('#free_play_error').show();$('#free_play_error').html("Request timed out. Please try again.");$('#free_play_digits').hide();clearInterval(intervalID);$("#free_play_form_button").attr("disabled", false);});}});$("#set_email_preferences").click(function() {$("#set_email_preferences").attr("disabled", true);var subs_arr = $('.email_subs_checkbox:checkbox:checked').map(function() { return this.value;}).get().toString();$.get('/?op=set_email_subscriptions&subs='+subs_arr, function(data) {$("#set_email_preferences").attr("disabled", false);$("#email_subs_success").show();});});
+
+
+
+
+
+$("#double_your_doge_payout_multiplier").keyup(function() {
+	if (parseFloat($("#double_your_doge_payout_multiplier").val()) < 1.01 && parseFloat($("#double_your_doge_payout_multiplier").val()) != 1){
+		$("#double_your_doge_payout_multiplier").val(1.01);
+	}else if (parseFloat($("#double_your_doge_payout_multiplier").val()) > 4750.00){
+		$("#double_your_doge_payout_multiplier").val(4750.00);
+	}
+	CalculateWinAmount();
+	$("#double_your_doge_win_chance").val((parseFloat(parseInt($( ".lt" ).html())/10000*100).toFixed(2))+"%");
+});
+$("#double_your_doge_win_chance").keyup(function(){
+	if (parseFloat($("#double_your_doge_win_chance").val()) > 94.06){
+		$("#double_your_doge_win_chance").val(94.06+"%");
+	}else if (parseFloat(
+		$("#double_your_doge_win_chance").val()) < 0.02 && parseFloat($("#double_your_doge_win_chance").val()) != 0){
+		$("#double_your_doge_win_chance").val(0.02+"%");
+	}
+	$("#double_your_doge_payout_multiplier").val(parseFloat(95/parseFloat($("#double_your_doge_win_chance").val())).toFixed(2));
+	CalculateWinAmount();
+});
+$("#double_your_doge_payout_multiplier").change(function() {
+	$("#double_your_doge_payout_multiplier").val(parseFloat(9500/parseInt($( ".lt" ).html())).toFixed(2));
+});
+$("#double_your_doge_win_chance").change(function(){
+	$("#double_your_doge_win_chance").val((parseFloat(parseInt($( ".lt" ).html())/10000*100).toFixed(2))+"%");
+});
+$("#double_your_doge_win_chance").focus(function() {
+$("#win_chance_value_message").show();
+});
+$("#double_your_doge_win_chance").focusout(function() {
+	$("#win_chance_value_message").hide();
+});
+$("#double_your_doge_payout_multiplier").focus(function() {
+	$("#payout_value_message").show();
+});
+$("#double_your_doge_payout_multiplier").focusout(function() {
+	$("#payout_value_message").hide();
+});
+$('.top-bar-section ul.right li').click(function() {
+	$('.top-bar').removeClass('expanded');
+});
+$("#auto_withdraw_option_link").click(function(event) {
+	$(".withdraw_options").hide();
+	$("#auto_withdraw_option").show();
+});
+$("#instant_withdraw_option_link").click(function(event) {
+	$(".withdraw_options").hide();
+	$("#instant_withdraw_option").show();
+});
+$(".withdraw_options_ul a").click(function(){
+	$(".withdraw_options_ul a.active").removeClass();
+	$(this).addClass('active').blur();
+	return false;
+});
+$("#auto_withdraw_option_link").click();
+$(".remove_autobet_error").focus(function(){
+	$("#autobet_error").hide();
+	$("#autobet_error").html('');
+});
+$('#login_form').hide();
+$('.login_menu_button').click(function(){
+	$('#signup_form').hide();
+	$('#homepage_login_button').hide();
+	$('#homepage_signup_button').show();
+	$('#login_form').fadeIn();
+});
+$('.signup_menu_button').click(function(){
+	$('#login_form').hide();
+	$('#homepage_login_button').show();
+	$('#homepage_signup_button').hide();
+	$('#signup_form').fadeIn();
+});
+$("#link_features").click(function() {
+	$('html, body').animate({scrollTop: $("#features").offset().top - 40}, 800);
+});
+$("#link_home, .login_menu_button, .signup_menu_button").click(function() {
+	$('html, body').animate({scrollTop: $("#new_home").offset().top - 40}, 800);
+});
+$("#link_dogecoin").click(function() {
+	$('html, body').animate({scrollTop: $("#home_dogecoin").offset().top - 40}, 800);
+});
+var have_account_cookie = $.cookie('have_account');
+if (have_account_cookie == 1){
+	$(".login_menu_button").click();
+}if(document.createElement("input").placeholder == undefined){
+	$(".form_placeholders").show();
+}$("#autobet_bet_odds").focus(function() {
+	$("#autobet_payout_value_message").show();
+});
+$("#autobet_bet_odds").focusout(function() {
+	$("#autobet_payout_value_message").hide();
+});
+});
+function BetErrors (code){if (code == "e1"){$('#double_your_doge_error').html("Insufficient balance to make this bet");
+}if (code == "e2"){
+	$('#double_your_doge_error').html("Bet amount cannot be less than "+min_win_amount+" DOGE");
+}if (code == "e3"){
+	$('#double_your_doge_error').html("Bet amount cannot be empty");
+}if (code == "e4"){
+	$('#double_your_doge_error').html("Invalid bet method");
+}if (code == "e5"){
+	$('#double_your_doge_error').html("Bet amount cannot be more than "+max_win_amount+" DOGE");
+}if (code == "e6"){
+	$('#double_your_doge_error').html("Unexpected error. Please log out and then log back in");
+}if (code == "e7"){
+	$('#double_your_doge_error').html("Payout multiplier has to be between 2x and 100x");
+}if (code == "e8"){
+	$('#double_your_doge_error').html("Win amount cannot be more than "+max_win_amount+" DOGE");
+}if (code == "e9"){$('#double_your_doge_error').html("Your balance is insufficient to make this bet and try to win the jackpot<BR>Please un-select the jackpot bet option and try again");
+}if (code == "e10"){
+	$('#double_your_doge_error').html("Client Seed is either empty or has invalid characters (only letters and numbers allowed).<BR>Please correct it by clicking on the PROVABLY FAIR link above.");
+}if (code == "e11"){
+	$('#double_your_doge_error').html("Please wait for your previous bet to finish rolling.");
+}if (code == "e12"){
+	$('#double_your_doge_error').html("Betting is disabled in your country.");
+}
+}
+
+
+
+
+$("#double_your_doge_2x").click(function(event){
+	var bet=$("#double_your_doge_stake").val();
+	var balance=$("#balance").html();
+	if(bet*2<=balance){
+		if(bet*2*($("#double_your_doge_payout_multiplier").val()- 1)<=max_win_amount){
+			$("#double_your_doge_stake").val(parseFloat(Math.round(bet*2*100000000)/ 100000000).toFixed(8));
+		}else{
+			$("#double_your_doge_stake").val(parseFloat(Math.round(max_win_amount/($("#double_your_doge_payout_multiplier").val() - 1) * 100000000) / 100000000).toFixed(8));
+		}
+	}else{
+		if ( bet*2*($("#double_your_doge_payout_multiplier").val() - 1) <= max_win_amount){
+			$("#double_your_doge_stake").val(balance);
+		}else{
+			$("#double_your_doge_stake").val(parseFloat(Math.floor(max_win_amount/($("#double_your_doge_payout_multiplier").val() - 1) * 100000000) / 100000000).toFixed(8));
+		}
+	}
+	CalculateWinAmount();
+});
+$("#double_your_doge_half").click(function(event) {
+	var bet = $("#double_your_doge_stake").val();
+	var balance = $("#balance").html();
+	if (bet*0.5 >= min_win_amount){
+		if (bet*0.5 <= balance){
+			if ( bet*0.5*($( "#double_your_doge_payout_multiplier" ).val() - 1) <= max_win_amount){
+				$("#double_your_doge_stake").val(parseFloat(Math.round(bet*0.5 * 100000000) / 100000000).toFixed(8));
+			}else{
+				$("#double_your_doge_stake").val(parseFloat(Math.round(max_win_amount/($("#double_your_doge_payout_multiplier").val() - 1) * 100000000) / 100000000).toFixed(8));
+			}
+		}else{
+			if ( bet*0.5*($("#double_your_doge_payout_multiplier").val() - 1) <= max_win_amount){
+				$("#double_your_doge_stake").val(balance);
+			}else{
+				$("#double_your_doge_stake").val(parseFloat(Math.round(max_win_amount/($("#double_your_doge_payout_multiplier").val() - 1) * 100000000) / 100000000).toFixed(8));
+			}
+		}
+	}
+	CalculateWinAmount();
+});
+$("#double_your_doge_max").click(function(event) {
+	var bet = $("#double_your_doge_stake").val();
+	var balance = $("#balance").html();
+	if (balance*($( "#double_your_doge_payout_multiplier" ).val() - 1) <= max_win_amount){
+		$("#double_your_doge_stake").val(balance);
+	}else{
+		$("#double_your_doge_stake").val(parseFloat(Math.round(max_win_amount/($("#double_your_doge_payout_multiplier").val() - 1) * 100000000) / 100000000).toFixed(8));
+	}
+	CalculateWinAmount();
+});
+$("#double_your_doge_min").click(function(event) {
+	var balance = $("#balance").html();
+	if (balance >= min_win_amount){
+		$("#double_your_doge_stake").val(min_win_amount);
+	}else{
+		$("#double_your_doge_stake").val('0.00000000');
+	}
+	CalculateWinAmount();
+});
+$("#double_your_doge_stake").keyup(function(event) {
+	CalculateWinAmount();
+});
+$("#double_your_doge_stake").keydown(function(event) {
+	$("#double_your_doge_stake").keyup();
+});
+$("#double_your_doge_stake").keypress(function(event) {
+	$("#double_your_doge_stake").keyup();
+});
+$("#double_your_doge_stake").focusout(function(event) {
+	$("#double_your_doge_stake").keyup();
+});
+$("#double_your_doge_bet_hi_button").click(function(event) {
+	DoubleYourDOGE ('hi');
+});
+$("#double_your_doge_bet_lo_button").click(function(event) {
+	DoubleYourDOGE ('lo');
+});
+
+
+/****************************************/
+function DoubleYourDOGE (mode){
+	$('#double_your_doge_digits').show();
+	var intervalID = setInterval(function (){
+		$("#multiplier_first_digit").html(Math.floor(Math.random()*10));
+		$("#multiplier_second_digit").html(Math.floor(Math.random()*10));
+		$("#multiplier_third_digit").html(Math.floor(Math.random()*10));
+		$("#multiplier_fourth_digit").html(Math.floor(Math.random()*10));
+		$("#multiplier_fifth_digit").html(Math.floor(Math.random()*10));
+	}, 1);
+	$("#double_your_doge_bet_hi_button").attr("disabled", true);
+	$("#double_your_doge_bet_lo_button").attr("disabled", true);
+	var bet = $("#double_your_doge_stake").val();
+	var jackpot = 0;
+	var jackpot_arr = $('.play_jackpot:checkbox:checked').map(function() {
+		return this.value;
+		}).get();
+	if (jackpot_arr.length > 0){
+		jackpot = jackpot_arr.toString();
+	}
+	var client_seed = $('#next_client_seed').val();
+	$.get('/cgi-bin/bet.pl?m='+mode+'&client_seed='+client_seed+'&jackpot='+jackpot+'&stake='+bet+
+			'&multiplier='+$( "#double_your_doge_payout_multiplier" ).val()+'&rand='+Math.random(),
+			function(data) {
+		var result = data.split(":");
+		$('#double_your_doge_error').html("");
+		$('#double_your_doge_error').hide();
+		$('#double_your_doge_stake').removeClass('input-error');
+		$('#double_your_doge_bet_win').html("");
+		$('#double_your_doge_bet_lose').html("");
+		$('#double_your_doge_bet_win').hide();
+		$('#double_your_doge_bet_lose').hide();
+		$('#jackpot_message').removeClass('green');
+		$('#jackpot_message').removeClass('red');
+		$('#jackpot_message').html('');
+		$('#jackpot_message').hide();
+		$('#double_your_doge_result').show();
+		if (result[0] == "s1"){
+			var number=result[2];
+			var single_digit=number.split("");
+			if (number.toString().length < 5){
+				var remaining=5-number.toString().length;
+				for (var i=0;i<remaining;i++){
+					single_digit.unshift('0');
+				}
+			}
+			clearInterval(intervalID);
+			$("#multiplier_first_digit").html(single_digit[0]);
+			$("#multiplier_second_digit").html(single_digit[1]);
+			$("#multiplier_third_digit").html(single_digit[2]);
+			$("#multiplier_fourth_digit").html(single_digit[3]);
+			$("#multiplier_fifth_digit").html(single_digit[4]);
+			$('#balance').html(result[3]);
+			$('#balance2').html(result[3]);
+			$('#next_server_seed_hash').val(result[6]);
+			$('#next_nonce').html(result[8]);
+			$('.previous_server_seed').html(result[9]);
+			$('.previous_server_seed').val(result[9]);
+			$('#previous_server_seed_hash').val(result[10]);
+			$('.previous_client_seed').html(result[11]);
+			$('.previous_client_seed').val(result[11]);
+			$('.previous_nonce').html(result[12]);
+			$('#previous_roll').html(result[2]);
+			$('#no_previous_rolls_msg').hide();
+			$('#previous_rolls_table').show();
+			$('#previous_roll_strings').show();
+			if (parseFloat(result[16]) > 0 && parseFloat(result[16]) < 5000000){
+				$('.multiply_max_bet').html(result[16]);
+				$('.multiply_max_bet').val(result[16]);
+				max_win_amount = parseFloat(result[16]);
+			}
+			$("#verify_rolls_link").attr("href", "https://s3.amazonaws.com/roll-verifier/verify.html?server_seed="+result[9]+"&client_seed="+result[11]+"&server_seed_hash="+result[10]+"&nonce="+result[12]);
+			var capsmode = mode.toUpperCase();
+			if (result[1] == "w"){
+				$('#double_your_doge_bet_win').show();
+				$('#double_your_doge_bet_win').html("You BET "+capsmode+" so you win "+result[4]+" DOGE!");
+			}if (result[1] == "l"){
+				$('#double_your_doge_bet_lose').show();
+				$('#double_your_doge_bet_lose').html("You BET "+capsmode+" so you lose "+result[4]+" DOGE");
+			}if (jackpot != 0){
+				$('#jackpot_message').show();
+				if (result[13] == "1"){
+					$('#jackpot_message').addClass('green');
+					$('#jackpot_message').html("Congratulations! You have won the jackpot of "+result[15]+" DOGE");
+				}else{
+					$('#jackpot_message').addClass('red');
+					$('#jackpot_message').html("Sorry, you did not win the jackpot.");
+				}
+			}
+			$("#double_your_doge_bet_hi_button").attr("disabled", false);
+			$("#double_your_doge_bet_lo_button").attr("disabled", false);
+		}else{
+			$('#double_your_doge_error').show();
+			$('#double_your_doge_digits').hide();
+			if (parseFloat(result[1]) > 0 && parseFloat(result[1]) < 5000000){
+				$('.multiply_max_bet').html(result[1]);
+				$('.multiply_max_bet').val(result[1]);
+				max_win_amount = parseFloat(result[1]);
+			}
+			BetErrors(result[0]);
+			clearInterval(intervalID);
+			if (result[0] == "e6"){
+				$("#double_your_doge_bet_hi_button").attr("disabled", true);
+				$("#double_your_doge_bet_lo_button").attr("disabled", true);
+			}else{
+				$("#double_your_doge_bet_hi_button").attr("disabled", false);
+				$("#double_your_doge_bet_lo_button").attr("disabled", false);
+			}
+		}
+	}).fail(function() {
+		$('#double_your_doge_result').show();
+		$('#double_your_doge_error').show();
+		$('#double_your_doge_digits').hide();
+		$('#double_your_doge_error').html("Request timed out. Please try again.");
+		clearInterval(intervalID);
+		$("#double_your_doge_bet_hi_button").attr("disabled", false);
+		$("#double_your_doge_bet_lo_button").attr("disabled", false);
+	});
+}
+	
+/*******************************************************/
+
+
+	function title_countdown (tot_time){var countdown_end = (new Date() / 1000)+tot_time;setInterval(function () {if (tot_time < 1){$('title').html('0m:0s - FreeDoge.co.in - Win free dogecoins every hour!');return;}else{tot_time = countdown_end-(new Date() / 1000)-1;var mins = Math.floor(tot_time/60);var secs = Math.floor(tot_time - (mins*60));$('title').html(mins+'m:'+secs+'s - '+'FreeDoge.co.in - Win free dogecoins every hour!');}}, 1000);}function ShowMoreRefs(count){var refs_shown = parseInt($('#referrals_shown').val(),0);$.get('/?op=show_more_refs&start='+refs_shown+'&count='+count, function(data) {$("#referral_list_table").append(data);if (count == 10){$('#referrals_shown').val(refs_shown+10);}else if (count == 20){$('#referrals_shown').val(refs_shown+20);}else if (count == 9999999){$('#show_more_refs_options').hide();}});}function ShowAdvancedStats(days){$.get('/?op=show_advanced_stats&days='+days, function(data) {$('#detailed_ref_stats_table').show();$('#detailed_ref_stats_table').find("tr:gt(0)").remove();$("#detailed_ref_stats_table").append(data);});}function SwitchTabs (){$('#top_leader_iframe').attr('src',$('#top_leader_iframe').attr('src'));$('#left_sky_iframe').attr('src',$('#left_sky_iframe').attr('src'));$('#right_sky_iframe').attr('src',$('#right_sky_iframe').attr('src'));}function commaSeparateNumber(val){while (/(\d+)(\d{3})/.test(val.toString()))  {  val = val.toString().replace(/(\d+)(\d{3})/, '$1'+','+'$2');  }  return val;}function AutoBet (mode,bet_count,max_bet,base_bet,autobet_win_return_to_base,autobet_lose_return_to_base,autobet_win_increase_bet_percent,autobet_lose_increase_bet_percent,change_client_seed,reset_after_max_bet,rolls_played,biggest_bet,biggest_win,session_pl,autobet_win_change_odds,autobet_lose_change_odds,stop_after_profit,stop_after_loss,logging){if (stop_autobet == true){StopAutoBet();return;}else{$('#double_your_doge_digits').show();$('#autobet_results_box').show();$("#double_your_doge_bet_hi_button").attr("disabled", true);$("#double_your_doge_bet_lo_button").attr("disabled", true);var bet = parseFloat($("#double_your_doge_stake").val()).toFixed(8);if (parseFloat(bet) > parseFloat(biggest_bet)){biggest_bet = bet;}autobet_win_increase_bet_percent = parseFloat(autobet_win_increase_bet_percent).toFixed(2);autobet_lose_increase_bet_percent = parseFloat(autobet_lose_increase_bet_percent).toFixed(2);var jackpot = 0;var jackpot_arr = $('.play_jackpot:checkbox:checked').map(function() { return this.value;}).get();if (jackpot_arr.length > 0){jackpot = jackpot_arr.toString();}var client_seed = $('#next_client_seed').val();var new_mode=mode;if (mode == "alternate"){if (bet_count % 2 == 0){new_mode = "hi";}else{new_mode = "lo";}}$.get('/cgi-bin/bet.pl?m='+new_mode+'&client_seed='+client_seed+'&jackpot='+jackpot+'&stake='+bet+'&multiplier='+$("#double_your_doge_payout_multiplier").val()+'&rand='+Math.random(), function(data) {var result=data.split(":");$('#double_your_doge_error').html("");$('#double_your_doge_error').hide();$('#double_your_doge_stake').removeClass('input-error');$('#double_your_doge_bet_win').html("");$('#double_your_doge_bet_lose').html("");$('#double_your_doge_bet_win').hide();$('#double_your_doge_bet_lose').hide();$('#jackpot_message').removeClass('green');$('#jackpot_message').removeClass('red');$('#jackpot_message').html('');$('#jackpot_message').hide();$('#double_your_doge_result').show();if (result[0] == "s1"){bet_count--;rolls_played++;$('#rolls_played_count').html(rolls_played);$('#rolls_remaining_count').html(bet_count);$('#autobet_highest_bet').html(biggest_bet+" DOGE");var number=result[2];var single_digit=number.split(""); if (number.toString().length < 5){var remaining=5-number.toString().length;for (var i=0;i<remaining;i++){single_digit.unshift('0');}}$("#multiplier_first_digit").html(single_digit[0]);$("#multiplier_second_digit").html(single_digit[1]);$("#multiplier_third_digit").html(single_digit[2]);$("#multiplier_fourth_digit").html(single_digit[3]);$("#multiplier_fifth_digit").html(single_digit[4]);$('#balance').html(result[3]);$('#balance2').html(result[3]);$('#balance_usd').html(result[5]);$('#next_server_seed_hash').val(result[6]);$('#next_nonce').html(result[8]);$('.previous_server_seed').html(result[9]);$('.previous_server_seed').val(result[9]);$('#previous_server_seed_hash').val(result[10]);$('.previous_client_seed').html(result[11]);$('.previous_client_seed').val(result[11]);$('.previous_nonce').html(result[12]);$('#previous_roll').html(result[2]);$('#no_previous_rolls_msg').hide();$('#previous_rolls_table').show();$('#previous_roll_strings').show();if (parseFloat(result[16]) > 0 && parseFloat(result[16]) < 5000000){$('.multiply_max_bet').html(result[16]);$('.multiply_max_bet').val(result[16]);max_win_amount = parseFloat(result[16]);}$("#verify_rolls_link").attr("href", "https://s3.amazonaws.com/roll-verifier/verify.html?server_seed="+result[9]+"&client_seed="+result[11]+"&server_seed_hash="+result[10]+"&nonce="+result[12]);var capsmode = new_mode.toUpperCase(); var bet_profit = "";console.log(result[1]+"-"+result[4]);if (result[1] == "w"){$('#double_your_doge_bet_win').show();$('#double_your_doge_bet_win').html("You BET "+capsmode+" so you win "+result[4]+" DOGE!");bet_profit = "<font color=green>+"+result[4]+"</font>";session_pl = parseFloat(((session_pl*100000000)+(result[4]*100000000))/100000000).toFixed(8);if (autobet_win_return_to_base == 1){$("#double_your_doge_stake").val(parseFloat(base_bet).toFixed(8));}else if (parseFloat(autobet_win_increase_bet_percent) != 0){var new_bet_size = parseFloat((bet*((autobet_win_increase_bet_percent/100)+1))).toFixed(8);$("#double_your_doge_stake").val(new_bet_size);}if (parseFloat(result[4]) > parseFloat(biggest_win)){biggest_win = parseFloat(result[4]).toFixed(8);}$('#autobet_highest_win').html(biggest_win+" DOGE");if (autobet_win_change_odds != 0){$("#double_your_doge_payout_multiplier").val(autobet_win_change_odds);$("#double_your_doge_payout_multiplier").keyup();}}if (result[1] == "l"){$('#double_your_doge_bet_lose').show();$('#double_your_doge_bet_lose').html("You BET "+capsmode+" so you lose "+result[4]+" DOGE");bet_profit = "<font color=red>-"+result[4]+"</font>";session_pl = parseFloat(((session_pl*100000000)-(result[4]*100000000))/100000000).toFixed(8);if (autobet_lose_return_to_base == 1){$("#double_your_doge_stake").val(parseFloat(base_bet).toFixed(8));}else if (autobet_lose_increase_bet_percent != 0){var new_bet_size = parseFloat((bet*((autobet_lose_increase_bet_percent/100)+1))).toFixed(8);$("#double_your_doge_stake").val(new_bet_size);}if (autobet_lose_change_odds != 0){$("#double_your_doge_payout_multiplier").val(autobet_lose_change_odds);$("#double_your_doge_payout_multiplier").keyup();}}if (logging === 1){var currentdate = new Date();var curtime = currentdate.getHours() + ":" + currentdate.getMinutes() + ":" + currentdate.getSeconds();autobet_history[rolls_played-1] = {'time': curtime, 'multiplier': $("#double_your_doge_payout_multiplier").val(),'stake': bet,'bet': capsmode,'roll': single_digit[0]+single_digit[1]+single_digit[2]+single_digit[3]+single_digit[4],'profit': bet_profit,'verify': "<a href='https://s3.amazonaws.com/roll-verifier/verify.html?server_seed="+result[9]+"&client_seed="+result[11]+"&server_seed_hash="+result[10]+"&nonce="+result[12]+"' target=_blank>CLICK</a>"};}if (jackpot != 0){$('#jackpot_message').show();if (result[13] == "1"){$('#jackpot_message').addClass('green');$('#jackpot_message').html("Congratulations! You have won the jackpot of "+result[15]+" DOGE");}else{$('#jackpot_message').addClass('red');$('#jackpot_message').html("Sorry, you did not win the jackpot.");}}$("#double_your_doge_bet_hi_button").attr("disabled", false);$("#double_your_doge_bet_lo_button").attr("disabled", false);$('#autobet_pl').removeClass();$('#autobet_pl').addClass('bold');if (parseFloat(session_pl) < 0){$('#autobet_pl').css({'background-color':'#FF6666'});}else{$('#autobet_pl').css({'background-color':'#33FF33'});}$('#autobet_pl').html(session_pl+' DOGE');if (bet_count > 0){bet = parseFloat($("#double_your_doge_stake").val()).toFixed(8);if (parseFloat(bet) > parseFloat(max_bet) || parseFloat(bet*($("#double_your_doge_payout_multiplier").val()-1))> parseFloat(max_win_amount)){if (reset_after_max_bet == 1){$("#double_your_doge_stake").val(parseFloat(base_bet).toFixed(8));}else{stop_autobet = true;}}if (change_client_seed == 1){charSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';var randomString = '';for (var i = 0; i < 16; i++) {var randomPoz = Math.floor(Math.random() * charSet.length);randomString += charSet.substring(randomPoz,randomPoz+1);}$('#next_client_seed').val(randomString);}if ((parseFloat(stop_after_profit) > 0 && parseFloat(session_pl) >= parseFloat(stop_after_profit)) || (parseFloat(stop_after_loss) > 0 && parseFloat(session_pl) <= -1*parseFloat(stop_after_loss))){stop_autobet = true;}AutoBet(mode,bet_count,max_bet,base_bet,autobet_win_return_to_base,autobet_lose_return_to_base,autobet_win_increase_bet_percent,autobet_lose_increase_bet_percent,change_client_seed,reset_after_max_bet,rolls_played,biggest_bet,biggest_win,session_pl,autobet_win_change_odds,autobet_lose_change_odds,stop_after_profit,stop_after_loss,logging);}else{StopAutoBet();}}else{$('#double_your_doge_error').show();$('#double_your_doge_digits').hide();if (parseFloat(result[1]) > 0 && parseFloat(result[1]) < 5000000){$('.multiply_max_bet').html(result[1]);$('.multiply_max_bet').val(result[1]);max_win_amount = parseFloat(result[1]);}BetErrors(result[0]);StopAutoBet();if (result[0] == "e6"){$("#double_your_doge_bet_hi_button").attr("disabled", true);$("#double_your_doge_bet_lo_button").attr("disabled", true);}else{$("#double_your_doge_bet_hi_button").attr("disabled", false);$("#double_your_doge_bet_lo_button").attr("disabled", false);}}}).fail(function() {  AutoBet (mode,bet_count,max_bet,base_bet,autobet_win_return_to_base,autobet_lose_return_to_base,autobet_win_increase_bet_percent,autobet_lose_increase_bet_percent,change_client_seed,reset_after_max_bet,rolls_played,biggest_bet,biggest_win,session_pl,autobet_win_change_odds,autobet_lose_change_odds,stop_after_profit,stop_after_loss,logging); });}}function RefreshPageAfterFreePlayTimerEnds(){if (autobet_dnr == false || (autobet_dnr == true && autobet_running == false)){if (free_play_sound == true) {$.ionSound.play("jump_up");}window.location.replace("http://freedoge.co.in/?op=home");}}function StopAutoBet(){$("#double_your_doge_stake").val(min_win_amount);$("#double_your_doge_payout_multiplier").val(2);$("#double_your_doge_payout_multiplier").keyup();$(".play_jackpot").prop("checked", false);$("#auto_betting_button").show();$("#stop_auto_betting").hide();stop_autobet = false;autobet_running = false;autobet_dnr = false;}function GenerateMainDepositAddress (){$.get('/?op=generate_main_dogecoin_deposit_address', function(data) {$('#main_deposit_address').html('<p>Send dogecoins to the address below to top up your account balance.</p><p><div style="width:400px;" align=center><input type="text" size=40 style="text-align:center;" value="'+data+'" onClick="this.select();"></div></p>');});}function UpdateStats (){var socket = io('ws.freebitco.in/fdoge_stats', {autoConnect: true,reconnectionDelayMax: 60000, port: 443});socket.on('fdoge_stats', function(data) {if (data.fdoge_total_doge_won_number > 0){$("#total_doge_won_number").html(ReplaceNumberWithCommas(parseFloat(data.fdoge_total_doge_won_number*100 / 100).toFixed(2))+" DOGE");$("#total_doge_won_number_signup_page").html(ReplaceNumberWithCommas(parseFloat(data.fdoge_total_doge_won_number*100 / 100).toFixed(2)));}if (data.fdoge_total_plays_number > 0){$("#total_plays_number").html(ReplaceNumberWithCommas(data.fdoge_total_plays_number));}if (data.fdoge_total_signups_number > 0){$("#total_signups_number").html(ReplaceNumberWithCommas(data.fdoge_total_signups_number));}if (data.fdoge_total_wagered_number > 0){$("#total_wagered_number").html(ReplaceNumberWithCommas(parseFloat(data.fdoge_total_wagered_number*100 / 100).toFixed(2))+" DOGE");}/*if (data.fbtc_btc_price > 0){$("#btc_usd_price").html(ReplaceNumberWithCommas("$"+parseFloat(data.fbtc_btc_price*100 / 100).toFixed(2)));}*/});}function ReplaceNumberWithCommas(yourNumber) {var n= yourNumber.toString().split(".");n[0] = n[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");return n.join(".");}function CalculateWinAmount(){$( ".gt" ).html( parseInt(Math.round(10000-(9500/parseFloat($("#double_your_doge_payout_multiplier").val()).toFixed(2)))) );$( ".lt" ).html( parseInt(Math.round((9500/parseFloat($("#double_your_doge_payout_multiplier").val()).toFixed(2)))) );/*var win_amount = 0;if ($( "#double_your_btc_stake" ).val()*100000000 > 999){win_amount = Math.round(($( "#double_your_btc_stake" ).val()*((parseFloat(9500/parseInt($( ".lt" ).html())).toFixed(2)) - 1))*100000000);}else{win_amount = Math.floor(($( "#double_your_btc_stake" ).val()*((parseFloat(9500/parseInt($( ".lt" ).html())).toFixed(2)) - 1))*100000000);}*/var win_amount = Math.floor(($( "#double_your_doge_stake" ).val()*((parseFloat(9500/parseInt($( ".lt" ).html())).toFixed(2)) - 1))*100000000+1e-6);$( "#win_amount" ).html( parseFloat(win_amount / 100000000).toFixed(8) );}function AutoBetErrors (code){$("#autobet_error").show();$("#double_your_doge_result").hide();$("#double_your_doge_middle_section").css({'border-radius':'0 0 10px 10px'});if (code == "e1"){$("#autobet_error").html("Base bet has to be between "+min_win_amount+" and "+max_win_amount+" DOGE");}if (code == "e2"){$("#autobet_error").html("Bet odds has to be an integer between 1.01 and 4750");}if (code == "e3"){$("#autobet_error").html("Max bet has to be between "+min_win_amount+" and "+max_win_amount+" DOGE");}if (code == "e4"){$("#autobet_error").html("Bet count has to be atleast 1");}if (code == "e5"){$("#autobet_error").html("Bet odds after win has to be an integer between 1.01 and 4750");}if (code == "e6"){$("#autobet_error").html("Bet odds after lose has to be an integer between 1.01 and 4750");}if (code == "e7"){$("#autobet_error").html("Stop after profit value must be greater than 0");}if (code == "e8"){$("#autobet_error").html("Stop after loss value must be greater than 0");}}$("#
