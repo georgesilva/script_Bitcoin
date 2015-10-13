@@ -9,13 +9,9 @@ stopPercentage = 0.03  # Reaching this percentage of your balance the script sto
 odds = '10'  # Your Payout
 lossMulti = 1.14  # On Loss Multiply to (1.14 is equal to "Increase in 14%")
 imfe = True # Decide if you want to increase your bet in 20% untill the 10th play on a lose cicle
-inicialBalance = 0
-currentBalance = 0
 
 
 browser = frbtclib.openBrowser(wallet, password)
-
-#inicialBalance = frbtclib.getInitialBalance(browser)
 
 currentBalance = frbtclib.makeBet(browser, startBet, stopPercentage, odds, lossMulti, imfe)
 
