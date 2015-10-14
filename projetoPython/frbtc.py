@@ -1,18 +1,15 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import mechanize
-import urllib
-import cookielib
-import random
-import re
-import time
-import math
+import signal
+import mechanize, urllib, cookielib
+import random, re, time, math
 
 mode = "lo"
 clientSeed = "0"
 csrf_token = "0"
 maxWait = 300
 stop = False
+timeout = False
 lossesCounter = 0
 randNumber = '0.23360912990756333'
 saldoInicial = 0
@@ -89,6 +86,7 @@ def openBrowser(wallet, password):
 def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 	"Funcao que faz a aposta utilizando os parametros. Retorna o balanço atualizado em BTCs."
 	global iterator
+	global timeout
 	global saldoInicial
 	global stop
 	global sumLosses
@@ -106,8 +104,17 @@ def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 	with GracefulInterruptHandler() as h:
 		while True:
 			iterator = iterator+1
-			response = br.open('/cgi-bin/bet.pl?m='+mode+'&client_seed='+clientSeed+'&jackpot=0&stake='+str("{:.8f}".format(bet))+
-								'&multiplier='+odds+'&rand='+str(randNumber)+'&csrf_token='+csrf_token)
+			try:
+				response = br.open('https://freebitco.in/cgi-bin/bet.pl?m='+mode+'&client_seed='+clientSeed+'&jackpot=0&stake='+
+									str("{:.8f}".format(bet))+'&multiplier='+odds+'&rand='+str(randNumber)+
+									'&csrf_token='+csrf_token, timeout=3)
+				timeout = False
+			except:
+				timeout = True
+			if timeout:
+				print "Request Timed Out occurred. Waiting a few moments before try again."
+				time.sleep(4)
+				continue
 			serverResponse = response.read().split(':')
 			balance = serverResponse[3]
 			if iterator == 1:
@@ -126,7 +133,7 @@ def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 					return balance
 				if lossesCounter > maxLoss:
 					maxLoss = lossesCounter
-
+				print ""
 				print 'You WON! After losing ' + str(lossesCounter) + ' times. Restarting now!'
 				print 'Your maximum number of consecutive losses is ' + str(maxLoss)
 				if lossesCounter <= 200:
@@ -151,7 +158,7 @@ def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 			if h.interrupted:
 				stop = True
 				print "###############################################################################################"
-				print "Voce apertou Ctrl C. Saindo..."
+				print "Voce apertou Ctrl-C. Saindo..."
 	return balance
 
 def getClientSeed(br):
@@ -192,6 +199,7 @@ def multiply(bet, imfe, multiplier):
 def getRandomWait():
 	"Faz com que os tempos entre uma aposta e outra seja aleatorio"
 	wait = random.random() * maxWait
+	wait = wait+100
 	print 'Waiting for ' + str('{:.0f}'.format(wait)) + 'ms before next bet.'
 	tempo = wait/1000
 	time.sleep(tempo)
@@ -241,7 +249,6 @@ def printStats(balance):
 
 
 
-
 ###############ANOTATIONS
 #$.get('/cgi-bin/bet.pl?m='+mode+'&client_seed='+client_seed+'&jackpot='+jackpot+'&stake='+bet+'&
 #		multiplier='+$( "#double_your_doge_payout_multiplier" ).val()+'&rand='+Math.random(),
@@ -261,7 +268,6 @@ def printStats(balance):
 
 
 #Gerenciador de sinal de parada
-import signal
 
 class GracefulInterruptHandler(object):
 
