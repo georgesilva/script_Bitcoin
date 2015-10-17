@@ -1,13 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import signal
-import mechanize, urllib, cookielib
+import signal, os
+import mechanize, urllib2, cookielib
 import random, re, time, math
 
 mode = "lo"
 clientSeed = "0"
 csrf_token = "0"
-maxWait = 300
+maxWait = 500
 stop = False
 timeout = False
 lossesCounter = 0
@@ -49,7 +49,7 @@ def openBrowser(wallet, password):
 
 
 	# Open some site
-	response = br.open('https://freebitco.in/')
+	response = br.open('http://freebitco.in/')
 
 
 	#Doing the login
@@ -69,7 +69,7 @@ def openBrowser(wallet, password):
 	br.set_cookie("have_account=1; expires=3650")
 
 	#Loading the bet page
-	response = br.open('https://freebitco.in/?op=home&tab=double_your_btc#')
+	response = br.open('http://freebitco.in/?op=home&tab=double_your_btc#')
 	
 	global csrf_token
 	cookie = response.info()['Set-Cookie']
@@ -86,7 +86,6 @@ def openBrowser(wallet, password):
 def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 	"Funcao que faz a aposta utilizando os parametros. Retorna o balanço atualizado em BTCs."
 	global iterator
-	global timeout
 	global saldoInicial
 	global stop
 	global sumLosses
@@ -104,56 +103,72 @@ def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 	with GracefulInterruptHandler() as h:
 		while True:
 			iterator = iterator+1
+			#SIGALRM is only usable on a unix platform
+			signal.signal(signal.SIGALRM, timeoutHandler)
+			#change 5 to however many seconds you need
+			signal.alarm(25)
 			try:
-				response = br.open('https://freebitco.in/cgi-bin/bet.pl?m='+mode+'&client_seed='+clientSeed+'&jackpot=0&stake='+
+				response = br.open('http://freebitco.in/cgi-bin/bet.pl?m='+mode+'&client_seed='+clientSeed+'&jackpot=0&stake='+
 									str("{:.8f}".format(bet))+'&multiplier='+odds+'&rand='+str(randNumber)+
-									'&csrf_token='+csrf_token, timeout=3)
-				timeout = False
-			except:
-				timeout = True
-			if timeout:
-				print "Request Timed Out occurred. Waiting a few moments before try again."
-				time.sleep(4)
+									'&csrf_token='+csrf_token)
+			except urllib2.URLError as e:
+				print "Request Timed Out occurred. Waiting a few moments before trying again."
+				time.sleep(2)
 				continue
-			serverResponse = response.read().split(':')
-			balance = serverResponse[3]
-			if iterator == 1:
-				saldoInicial = balance
-			if iterator % 200 == 0:
-				printStats(balance)
+			except TimeExceededError:
+				print "###### Request hanging. Waiting to refresh. #######"
+				time.sleep(5)
+				continue
+			except:
+				print "Erro louco."
+				time.sleep(5)
+				continue
 
+			signal.alarm(0)
+			serverResponse = response.read().split(':')
+			
 			if serverResponse[0] != 's1':
-				print "An error occurred"
-			elif serverResponse[1] == 'w':
-				sumWin = sumWin+1
-				bet = reset(initBet)
-				if stop ==  True:
-					stop = False
-					printStats(balance)
-					return balance
-				if lossesCounter > maxLoss:
-					maxLoss = lossesCounter
-				print ""
-				print 'You WON! After losing ' + str(lossesCounter) + ' times. Restarting now!'
-				print 'Your maximum number of consecutive losses is ' + str(maxLoss)
-				if lossesCounter <= 200:
-					loseStats[lossesCounter] = loseStats[lossesCounter]+1
-				lossesCounter = 0
-			elif serverResponse[1] == 'l':
-				sumLosses = sumLosses+1
-				lossesCounter = lossesCounter+1
-				if lossesCounter > 0:
-					bet = multiply(bet, imfe, multiplier)
-				if iHaveEnoughMoni(bet, float(balance), stopPercentage) == False:
-					print 'Your bet reached a maximum threshold. Reseting for your safety. ' + str(lossesCounter)
+				print "An internal error occurred."
+			elif serverResponse[0] == 'e2':
+				print "Bet is too low."
+			else:
+				balance = serverResponse[3]
+				if iterator == 1:
+					saldoInicial = balance
+				if iterator % 200 == 0:
+					execTime = getExecTime()
+					if execTime > 240:
+						print "Mais de 4 horas trabalhando. Hora de descansar..."
+						time.sleep(2700)
+				if serverResponse[1] == 'w':
+					sumWin = sumWin+1
 					bet = reset(initBet)
+					if stop ==  True:
+						stop = False
+						printStats(balance)
+						return balance
 					if lossesCounter > maxLoss:
 						maxLoss = lossesCounter
-					print 'Your bet reached a maximum threshold. Reseting for your safety. ' + str(lossesCounter)
+					print ""
+					print 'You WON! After losing ' + str(lossesCounter) + ' times. Restarting now!'
+					print 'Your maximum number of consecutive losses is ' + str(maxLoss)
 					if lossesCounter <= 200:
 						loseStats[lossesCounter] = loseStats[lossesCounter]+1
 					lossesCounter = 0
-				print 'You LOST! Multiplying your bet and betting again.'
+				elif serverResponse[1] == 'l':
+					sumLosses = sumLosses+1
+					lossesCounter = lossesCounter+1
+					if lossesCounter > 0:
+						bet = multiply(bet, imfe, multiplier)
+					if iHaveEnoughMoni(bet, float(balance), stopPercentage) == False:
+						print 'Your bet reached a maximum threshold. Reseting for your safety. ' + str(lossesCounter)
+						print ""
+						bet = reset(initBet)
+						if lossesCounter > maxLoss:
+							maxLoss = lossesCounter
+						if lossesCounter <= 200:
+							loseStats[lossesCounter] = loseStats[lossesCounter]+1
+					print 'You LOST! Multiplying your bet and betting again.'
 			getRandomWait()
 			if h.interrupted:
 				stop = True
@@ -186,21 +201,21 @@ def reset(initBet):
 	return initBet
 
 def multiply(bet, imfe, multiplier):
-    if (lossesCounter > 0 and lossesCounter <= 5 and imfe):
-            multiplyTo = 1.20
-    elif (lossesCounter > 5):
-            multiplyTo = multiplier
-    elif (lossesCounter > 54 and multiplyTo > 1.12):
-            multiplyTo = multiplyTo - 0.01
+	"Aumenta as apostas dentro de um ciclo de perdas"
+	multiplyTo = multiplier
+	if (lossesCounter > 0 and lossesCounter <= 5 and imfe):
+		multiplyTo = 1.20
+	elif (lossesCounter > 54 and multiplyTo > 1.12):
+		multiplyTo = multiplyTo - 0.01
 
-    value = bet * multiplyTo
-    return  value
+	value = bet * multiplyTo
+	return  value
 
 def getRandomWait():
 	"Faz com que os tempos entre uma aposta e outra seja aleatorio"
 	wait = random.random() * maxWait
 	wait = wait+100
-	print 'Waiting for ' + str('{:.0f}'.format(wait)) + 'ms before next bet.'
+	print 'Waiting for ' + str('{:.0f}'.format(wait)) + 'ms before next bet.', time.asctime( time.localtime(time.time()) )
 	tempo = wait/1000
 	time.sleep(tempo)
 	return
@@ -216,6 +231,26 @@ def initiate():
 	for i in range(0,200):
 		loseStats[i] = 0
 
+def getExecTime():
+	"Retorna tempo de execucao em minutos"
+	global initTime
+	duration = (time.time() - initTime)/60
+	return duration
+
+def formatTime(duration):
+	"Passa tempo para texto"
+	twodigitsFormat = '{:.2f}'
+	eightdigitsFormat = '{:.8f}'
+	
+	if duration < 120:
+		minutos = twodigitsFormat.format(duration)
+		tempoTxt = str(minutos) + ' minutes.'
+	else:
+		horas = duration/60
+		horas = twodigitsFormat.format(horas)
+		tempoTxt =  str(horas) + ' hours.'
+	return tempoTxt
+
 
 def printStats(balance):
 	"Salva estatisticas em arquivo texto"
@@ -230,14 +265,7 @@ def printStats(balance):
 
 	print 'Winings: ' + str(sumWin) + ' [' + str(twodigitsFormat.format(pctWin)) + '%]. Losses: ' + str(sumLosses) + ' [' + str(twodigitsFormat.format(pctLost)) + '%]. Total: ' + str(sumTotal)
 	
-	tempo = (time.time() - initTime)/60
-	if tempo < 240:
-		tempo = twodigitsFormat.format(tempo)
-		strTempo = str(tempo) + ' minutes.'
-	else:
-		tempo = tempo / 60
-		tempo = twodigitsFormat.format(tempo)
-		strTempo =  str(tempo) + ' hours.'
+	strTempo = formatTime(getExecTime())
 
 	profit = eightdigitsFormat.format(float(balance) - float(saldoInicial))
 	
@@ -247,6 +275,9 @@ def printStats(balance):
 		if loseStats[i] != 0:
 			print str(i) + ' => ' + str(loseStats[i]) + ' times.'
 
+def timeoutHandler(signum, frame):
+	print "sig alarm"
+	raise TimeExceededError
 
 
 ###############ANOTATIONS
@@ -268,6 +299,11 @@ def printStats(balance):
 
 
 #Gerenciador de sinal de parada
+class TimeExceededError():
+	def __init__(self, value):
+		self.value = value
+	def __str__(self):
+		return repr(self.value)
 
 class GracefulInterruptHandler(object):
 
