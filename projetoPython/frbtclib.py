@@ -1,13 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import signal, os
+import signal, os, logging
 import mechanize, urllib2, cookielib
 import random, re, time, math
 
 mode = "lo"
 clientSeed = "0"
 csrf_token = "0"
-maxWait = 500
+maxWait = 200
 stop = False
 timeout = False
 lossesCounter = 0
@@ -112,15 +112,15 @@ def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 									str("{:.8f}".format(bet))+'&multiplier='+odds+'&rand='+str(randNumber)+
 									'&csrf_token='+csrf_token)
 			except urllib2.URLError as e:
-				print "Request Timed Out occurred. Waiting a few moments before trying again."
+				logging.debug("Request Timed Out occurred. Waiting a few moments before trying again.")
 				time.sleep(2)
 				continue
 			except TimeExceededError:
-				print "###### Request hanging. Waiting to refresh. #######"
+				logging.debug("###### Request hanging. Waiting to refresh. #######")
 				time.sleep(5)
 				continue
 			except:
-				print "Erro louco."
+				logging.info("Erro louco.")
 				time.sleep(5)
 				continue
 
@@ -128,18 +128,15 @@ def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 			serverResponse = response.read().split(':')
 			
 			if serverResponse[0] != 's1':
-				print "An internal error occurred."
+				logging.debug("An internal error occurred.")
 			elif serverResponse[0] == 'e2':
-				print "Bet is too low."
+				logging.debug("Bet is too low.")
 			else:
 				balance = serverResponse[3]
 				if iterator == 1:
 					saldoInicial = balance
 				if iterator % 200 == 0:
-					execTime = getExecTime()
-					if execTime > 240:
-						print "Mais de 4 horas trabalhando. Hora de descansar..."
-						time.sleep(2700)
+					printStats(balance)
 				if serverResponse[1] == 'w':
 					sumWin = sumWin+1
 					bet = reset(initBet)
@@ -149,9 +146,9 @@ def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 						return balance
 					if lossesCounter > maxLoss:
 						maxLoss = lossesCounter
-					print ""
-					print 'You WON! After losing ' + str(lossesCounter) + ' times. Restarting now!'
-					print 'Your maximum number of consecutive losses is ' + str(maxLoss)
+					logging.info(" ")
+					logging.info('You WON! After losing ' + str(lossesCounter) + ' times. Restarting now!')
+					logging.info('Your maximum number of consecutive losses is ' + str(maxLoss))
 					if lossesCounter <= 200:
 						loseStats[lossesCounter] = loseStats[lossesCounter]+1
 					lossesCounter = 0
@@ -161,19 +158,19 @@ def makeBet(br, initBet, stopPercentage, odds, multiplier, imfe):
 					if lossesCounter > 0:
 						bet = multiply(bet, imfe, multiplier)
 					if iHaveEnoughMoni(bet, float(balance), stopPercentage) == False:
-						print 'Your bet reached a maximum threshold. Reseting for your safety. ' + str(lossesCounter)
-						print ""
+						logging.warn('Your bet reached a maximum threshold. Reseting for your safety. ' + str(lossesCounter))
+						logging.warn("")
 						bet = reset(initBet)
 						if lossesCounter > maxLoss:
 							maxLoss = lossesCounter
 						if lossesCounter <= 200:
 							loseStats[lossesCounter] = loseStats[lossesCounter]+1
-					print 'You LOST! Multiplying your bet and betting again.'
+					logging.info('You LOST! Multiplying your bet and betting again.')
 			getRandomWait()
 			if h.interrupted:
 				stop = True
-				print "###############################################################################################"
-				print "Voce apertou Ctrl-C. Saindo..."
+				logging.info("#####################################################################")
+				logging.info("Voce apertou Ctrl-C. Saindo...")
 	return balance
 
 def getClientSeed(br):
@@ -202,11 +199,10 @@ def reset(initBet):
 
 def multiply(bet, imfe, multiplier):
 	"Aumenta as apostas dentro de um ciclo de perdas"
-	multiplyTo = multiplier
 	if (lossesCounter > 0 and lossesCounter <= 5 and imfe):
 		multiplyTo = 1.20
-	elif (lossesCounter > 54 and multiplyTo > 1.12):
-		multiplyTo = multiplyTo - 0.01
+	else:
+		multiplyTo = multiplier
 
 	value = bet * multiplyTo
 	return  value
@@ -215,7 +211,8 @@ def getRandomWait():
 	"Faz com que os tempos entre uma aposta e outra seja aleatorio"
 	wait = random.random() * maxWait
 	wait = wait+100
-	print 'Waiting for ' + str('{:.0f}'.format(wait)) + 'ms before next bet.', time.asctime( time.localtime(time.time()) )
+	horario = str( time.asctime( time.localtime(time.time()) ) )
+	logging.info('Waiting for ' + str('{:.0f}'.format(wait)) + 'ms before next bet.' + horario)
 	tempo = wait/1000
 	time.sleep(tempo)
 	return
@@ -254,7 +251,6 @@ def formatTime(duration):
 
 def printStats(balance):
 	"Salva estatisticas em arquivo texto"
-	#TODO por enquanto print on screen
 	twodigitsFormat = '{:.2f}'
 	eightdigitsFormat = '{:.8f}'
 	sumTotal = sumWin + sumLosses
@@ -263,44 +259,28 @@ def printStats(balance):
 	pctLost = float(sumLosses)/float(sumTotal)
 	pctLost = pctLost*100
 
-	print 'Winings: ' + str(sumWin) + ' [' + str(twodigitsFormat.format(pctWin)) + '%]. Losses: ' + str(sumLosses) + ' [' + str(twodigitsFormat.format(pctLost)) + '%]. Total: ' + str(sumTotal)
+	logging.info('Winings: ' + str(sumWin) + ' [' + str(twodigitsFormat.format(pctWin)) + '%]. Losses: ' + str(sumLosses) + ' [' + str(twodigitsFormat.format(pctLost)) + '%]. Total: ' + str(sumTotal))
 	
 	strTempo = formatTime(getExecTime())
 
 	profit = eightdigitsFormat.format(float(balance) - float(saldoInicial))
 	
-	print 'You Won ' + str(profit) + ' BTCs.'
-	print 'Your actual balance is: ' + str(balance) + ' BTCs. Running for ' + strTempo
+	logging.info('You Won ' + str(profit) + ' BTCs.')
+	logging.info('Your actual balance is: ' + str(balance) + ' BTCs. Running for ' + strTempo)
 	for i in range(0, 200):
 		if loseStats[i] != 0:
-			print str(i) + ' => ' + str(loseStats[i]) + ' times.'
+			logging.info(str(i) + ' => ' + str(loseStats[i]) + ' times.')
 
 def timeoutHandler(signum, frame):
-	print "sig alarm"
+	logging.warn("sig alarm")
 	raise TimeExceededError
-
-
-###############ANOTATIONS
-#$.get('/cgi-bin/bet.pl?m='+mode+'&client_seed='+client_seed+'&jackpot='+jackpot+'&stake='+bet+'&
-#		multiplier='+$( "#double_your_doge_payout_multiplier" ).val()+'&rand='+Math.random(),
-
-#httpResult[0] = success or fail
-#httpResult[1] = "w" or "l" 
-#httpResult[2] = bet random number
-#httpResult[3] = new Balance
-#httpResult[6] = new seed hash of server
-#httpResult[8] = new NONCE
-#httpResult[9] = old seed of server
-#httpResult[10] = old seed hash of server
-#httpResult[11] = old seed of client
-#httpResult[12] = old NONCE
-#httpResult[16] = is the maximum you can bet
 
 
 
 #Gerenciador de sinal de parada
 class TimeExceededError():
-	def __init__(self, value):
+	value = "Hanging function."
+	def __init__(self):
 		self.value = value
 	def __str__(self):
 		return repr(self.value)
