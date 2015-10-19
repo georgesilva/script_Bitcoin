@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import frbtclib
+import frbtclib, logging
 
 wallet = 'ENDEREÇO DA SUA CARTEIRA BITCOIN'
 password = 'SENHA'
@@ -10,9 +10,12 @@ odds = '10'  # Your Payout
 lossMulti = 1.14  # On Loss Multiply to (1.14 is equal to "Increase in 14%")
 imfe = True # Decide if you want to increase your bet in 20% untill the 10th play on a lose cicle
 
+# Set logging
+logging.basicConfig(filename='logs/template.log',level=logging.DEBUG)
+
 
 browser = frbtclib.openBrowser(wallet, password)
 
 currentBalance = frbtclib.makeBet(browser, startBet, stopPercentage, odds, lossMulti, imfe)
 
-print "Exiting... Bye!"
+logging.info("Exiting... Bye!")
